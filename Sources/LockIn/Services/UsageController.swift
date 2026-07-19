@@ -4,6 +4,7 @@ import Foundation
 final class UsageController {
     private let store: AppStore
     private let browserMonitor: BrowserActivityMonitoring
+    private let applicationMonitor: ApplicationActivityMonitoring
     private let notifications: UserNotifying
     private let suppliedBlockPageURL: URL?
     private var timer: Timer?
@@ -11,11 +12,13 @@ final class UsageController {
     init(
         store: AppStore,
         browserMonitor: BrowserActivityMonitoring = BrowserActivityMonitor(),
+        applicationMonitor: ApplicationActivityMonitoring = ApplicationActivityMonitor(),
         notifications: UserNotifying = NotificationService(),
         blockPageURL: URL? = nil
     ) {
         self.store = store
         self.browserMonitor = browserMonitor
+        self.applicationMonitor = applicationMonitor
         self.notifications = notifications
         self.suppliedBlockPageURL = blockPageURL
     }
@@ -40,31 +43,41 @@ final class UsageController {
         store.reloadUsageFromDisk()
         store.resetIfNeeded(now: store.now)
         store.expireCooldownIfNeeded(now: store.now)
-        recordCurrentBrowserUseIfNeeded()
+        recordCurrentUseIfNeeded()
         await reconcileLimits()
         blockCurrentBrowserTabIfNeeded()
+        blockCurrentApplicationIfNeeded()
     }
 
-    private func recordCurrentBrowserUseIfNeeded() {
-        let activity = browserMonitor.currentActivity()
-        store.currentActivity = activity
+    private func recordCurrentUseIfNeeded() {
+        let browserActivity = browserMonitor.currentActivity()
+        let applicationActivity = applicationMonitor.currentActivity()
+        let websiteRule = browserActivity.flatMap { activity in
+            store.rules.first(where: { DomainMatcher.url(activity.url, matchesDomain: $0.domain) })
+        }
+        let applicationRule = applicationActivity.flatMap { activity in
+            store.applicationRules.first(where: { $0.bundleIdentifier == activity.bundleIdentifier })
+        }
 
-        guard let activity,
-              let rule = store.rules.first(where: { DomainMatcher.url(activity.url, matchesDomain: $0.domain) }) else {
+        store.currentActivity = browserActivity
+        store.currentApplicationActivity = applicationActivity
+
+        let activeRuleIDs = Set([websiteRule?.id, applicationRule?.id].compactMap { $0 })
+        guard let ruleID = websiteRule?.id ?? applicationRule?.id else {
             store.currentRuleID = nil
             store.currentRuleSeenAt = nil
             store.setActiveRuleIDs([])
             return
         }
 
-        store.setActiveRuleIDs([rule.id])
+        store.setActiveRuleIDs(activeRuleIDs)
 
         guard !store.isCoolingDown(now: store.now),
               store.sessionSecondsUsed < store.sessionLimitMinutes * 60 else {
             return
         }
 
-        store.recordUsage(ruleID: rule.id, seconds: 1, now: store.now)
+        store.recordUsage(ruleID: ruleID, seconds: 1, now: store.now)
     }
 
     private func reconcileLimits() async {
@@ -74,11 +87,11 @@ final class UsageController {
         let warningAlreadySent = store.records.values.contains(where: \.warningSent)
 
         if sessionSeconds >= warningSeconds && !warningAlreadySent && limitSeconds > 5 * 60 {
-            notifications.sendWarning(domain: "Selected websites", minutesRemaining: 5)
-            for rule in store.rules {
-                if var record = store.records[rule.id] {
+            notifications.sendWarning(domain: "Selected websites and apps", minutesRemaining: 5)
+            for ruleID in store.allRuleIDs {
+                if var record = store.records[ruleID] {
                     record.warningSent = true
-                    store.records[rule.id] = record
+                    store.records[ruleID] = record
                 }
             }
         }
@@ -87,7 +100,7 @@ final class UsageController {
             store.startCooldown(now: store.now)
         }
 
-        store.blockerState = store.isCoolingDown(now: store.now) ? .active(store.rules.count) : .idle
+        store.blockerState = store.isCoolingDown(now: store.now) ? .active(store.allRuleIDs.count) : .idle
         store.save()
     }
 
@@ -100,6 +113,16 @@ final class UsageController {
         }
 
         browserMonitor.redirectActiveTab(in: activity, to: blockPageURL)
+    }
+
+    private func blockCurrentApplicationIfNeeded() {
+        guard store.isCoolingDown(now: store.now),
+              let activity = store.currentApplicationActivity,
+              store.applicationRules.contains(where: { $0.bundleIdentifier == activity.bundleIdentifier }) else {
+            return
+        }
+
+        applicationMonitor.block(activity)
     }
 
     private var blockPageURL: URL? {

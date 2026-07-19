@@ -16,7 +16,6 @@ struct LockInApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: AppRuntime?
     private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         let currentPID = ProcessInfo.processInfo.processIdentifier
@@ -40,26 +39,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Lock In")
             button.image?.isTemplate = true
             button.imagePosition = .imageOnly
-            button.target = self
-            button.action = #selector(togglePopover)
         }
+
+        let menu = NSMenu()
+        let menuItem = NSMenuItem()
+        let menuView = NSHostingView(rootView: MenuBarView(store: runtime.store))
+        menuView.frame.size = menuView.fittingSize
+        menuItem.view = menuView
+        menu.addItem(menuItem)
+        statusItem.menu = menu
         self.statusItem = statusItem
-
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: MenuBarView(store: runtime.store))
-        self.popover = popover
-    }
-
-    @objc private func togglePopover() {
-        guard let button = statusItem?.button, let popover else {
-            return
-        }
-
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        }
     }
 }

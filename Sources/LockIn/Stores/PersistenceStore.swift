@@ -2,6 +2,7 @@ import Foundation
 
 struct AppSnapshot: Codable {
     var rules: [BlockRule]
+    var applicationRules: [ApplicationRule]
     var records: [UsageRecord]
     var activeRuleIDs: [UUID]
     var sessionLimitMinutes: Int
@@ -15,6 +16,7 @@ struct AppSnapshot: Codable {
 
     enum CodingKeys: String, CodingKey {
         case rules
+        case applicationRules
         case records
         case activeRuleIDs
         case sessionLimitMinutes
@@ -32,6 +34,7 @@ struct AppSnapshot: Codable {
 
     init(
         rules: [BlockRule],
+        applicationRules: [ApplicationRule] = [],
         records: [UsageRecord],
         activeRuleIDs: [UUID] = [],
         sessionLimitMinutes: Int,
@@ -44,6 +47,7 @@ struct AppSnapshot: Codable {
         cumulativeSecondsUsed: Int = 0
     ) {
         self.rules = rules
+        self.applicationRules = applicationRules
         self.records = records
         self.activeRuleIDs = activeRuleIDs
         self.sessionLimitMinutes = sessionLimitMinutes
@@ -59,6 +63,7 @@ struct AppSnapshot: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         rules = try container.decode([BlockRule].self, forKey: .rules)
+        applicationRules = try container.decodeIfPresent([ApplicationRule].self, forKey: .applicationRules) ?? []
         records = try container.decode([UsageRecord].self, forKey: .records)
         activeRuleIDs = try container.decodeIfPresent([UUID].self, forKey: .activeRuleIDs) ?? []
         sessionLimitMinutes = try container.decodeIfPresent(Int.self, forKey: .sessionLimitMinutes)
@@ -81,6 +86,7 @@ struct AppSnapshot: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(rules, forKey: .rules)
+        try container.encode(applicationRules, forKey: .applicationRules)
         try container.encode(records, forKey: .records)
         try container.encode(activeRuleIDs, forKey: .activeRuleIDs)
         try container.encode(sessionLimitMinutes, forKey: .sessionLimitMinutes)

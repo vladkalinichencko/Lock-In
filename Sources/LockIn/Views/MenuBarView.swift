@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MenuBarView: View {
     @Bindable var store: AppStore
@@ -44,6 +46,66 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             }
+
+            HStack {
+                Text("Applications")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(action: addApplication) {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!store.canEditPolicy)
+                .help("Add application")
+            }
+
+            Divider()
+
+            ForEach(store.rules) { rule in
+                HStack(spacing: 8) {
+                    Text(rule.domain)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    Text(usedText(secondsUsed(for: rule)))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .trailing)
+                    if store.canRemove(rule: rule) {
+                        Button {
+                            store.remove(rule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove")
+                    }
+                }
+            }
+
+            ForEach(store.applicationRules) { rule in
+                HStack(spacing: 8) {
+                    Text(rule.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .trailing)
+                    if store.canRemove(applicationRule: rule) {
+                        Button {
+                            store.remove(applicationRule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove")
+                    }
+                }
+            }
+
+            Divider()
 
             HStack {
                 Text("Session")
@@ -102,33 +164,6 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            if !store.rules.isEmpty {
-                Divider()
-            }
-
-            ForEach(store.rules) { rule in
-                HStack(spacing: 8) {
-                    Text(rule.domain)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                    Text(usedText(secondsUsed(for: rule)))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 64, alignment: .trailing)
-                    if store.canRemove(rule: rule) {
-                        Button {
-                            store.remove(rule: rule)
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
-                        .buttonStyle(.plain)
-                        .help("Remove")
-                    }
-                }
-            }
-
         }
         .padding(12)
         .frame(width: 280)
@@ -207,5 +242,19 @@ struct MenuBarView: View {
             inputError = "Use domain.com or domain.com/path. Queries are not supported."
         }
         domainFieldFocused = true
+    }
+
+    private func addApplication() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/System/Applications")
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        if !store.addApplication(url: url) {
+            inputError = "Choose a macOS application other than Lock In."
+        }
     }
 }

@@ -3,19 +3,21 @@ import Foundation
 
 enum LockInSchedule {
     static func dayWindowStart(for date: Date, snapshot: LockInSnapshot, calendar: Calendar = .current) -> Date {
-        var components = calendar.dateComponents([.year, .month, .day], from: date)
-        components.hour = snapshot.resetHour
-        components.minute = snapshot.resetMinute
-        components.second = 0
-        let start = calendar.date(from: components) ?? date
-        if date >= start {
-            return start
-        }
-        return calendar.date(byAdding: .day, value: -1, to: start) ?? start
+        LockInPolicy.dayWindowStart(
+            for: date,
+            resetHour: snapshot.resetHour,
+            resetMinute: snapshot.resetMinute,
+            calendar: calendar
+        )
     }
 
     static func nextReset(after date: Date, snapshot: LockInSnapshot, calendar: Calendar = .current) -> Date {
-        calendar.date(byAdding: .day, value: 1, to: dayWindowStart(for: date, snapshot: snapshot, calendar: calendar)) ?? date
+        LockInPolicy.nextReset(
+            after: date,
+            resetHour: snapshot.resetHour,
+            resetMinute: snapshot.resetMinute,
+            calendar: calendar
+        )
     }
 
     static func deviceActivitySchedule(for snapshot: LockInSnapshot) -> DeviceActivitySchedule {
@@ -50,4 +52,3 @@ enum LockInSchedule {
         return events
     }
 }
-

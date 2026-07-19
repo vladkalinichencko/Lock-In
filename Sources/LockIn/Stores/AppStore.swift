@@ -5,6 +5,7 @@ import Observation
 @MainActor
 final class AppStore {
     var rules: [BlockRule] = []
+    var applicationRules: [ApplicationRule] = []
     var records: [UUID: UsageRecord] = [:]
     var sessionLimitMinutes: Int = 30
     var sessionCountLimit: Int = 1
@@ -15,6 +16,7 @@ final class AppStore {
     var completedSessionCount: Int = 0
     var cumulativeSecondsUsed: Int = 0
     var currentActivity: BrowserActivity?
+    var currentApplicationActivity: ApplicationActivity?
     var currentRuleID: UUID?
     var currentRuleSeenAt: Date?
     var activeRuleIDs: Set<UUID> = []
@@ -48,6 +50,7 @@ final class AppStore {
         do {
             let snapshot = try persistence.load()
             rules = snapshot.rules
+            applicationRules = snapshot.applicationRules
             records = Dictionary(uniqueKeysWithValues: snapshot.records.map { ($0.ruleID, $0) })
             activeRuleIDs = Set(snapshot.activeRuleIDs)
             sessionLimitMinutes = snapshot.sessionLimitMinutes
@@ -71,6 +74,7 @@ final class AppStore {
             try persistence.save(
                 AppSnapshot(
                     rules: rules,
+                    applicationRules: applicationRules,
                     records: Array(records.values),
                     activeRuleIDs: Array(activeRuleIDs),
                     sessionLimitMinutes: sessionLimitMinutes,
@@ -97,7 +101,10 @@ final class AppStore {
     }
 
     var totalSecondsAllowed: Int {
-        sessionLimitMinutes * sessionCountLimit * 60
+        LockInPolicy.totalSecondsAllowed(
+            sessionMinutes: sessionLimitMinutes,
+            sessionCount: sessionCountLimit
+        )
     }
 
     var isCoolingDown: Bool {
@@ -109,7 +116,11 @@ final class AppStore {
     }
 
     var canEditPolicy: Bool {
-        totalSecondsUsed == 0 && completedSessionCount == 0 && cooldownUntil == nil
+        LockInPolicy.canEdit(
+            cumulativeSecondsUsed: totalSecondsUsed,
+            completedSessionCount: completedSessionCount,
+            cooldownUntil: cooldownUntil
+        )
     }
 
     func refreshGuardianStatus() {
@@ -166,11 +177,46 @@ final class AppStore {
         save()
     }
 
+    @discardableResult
+    func addApplication(url: URL) -> Bool {
+        guard canEditPolicy,
+              let bundle = Bundle(url: url),
+              let bundleIdentifier = bundle.bundleIdentifier,
+              bundleIdentifier != Bundle.main.bundleIdentifier else {
+            return false
+        }
+        guard !applicationRules.contains(where: { $0.bundleIdentifier == bundleIdentifier }) else {
+            return true
+        }
+        applicationRules.append(ApplicationRule(
+            name: bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? url.deletingPathExtension().lastPathComponent,
+            bundleIdentifier: bundleIdentifier
+        ))
+        save()
+        return true
+    }
+
+    func canRemove(applicationRule: ApplicationRule) -> Bool {
+        canEditPolicy && (records[applicationRule.id]?.secondsUsed ?? 0) == 0
+    }
+
+    func remove(applicationRule: ApplicationRule) {
+        guard canRemove(applicationRule: applicationRule),
+              let index = applicationRules.firstIndex(where: { $0.id == applicationRule.id }) else {
+            return
+        }
+        applicationRules.remove(at: index)
+        records.removeValue(forKey: applicationRule.id)
+        save()
+    }
+
     func updateSessionLimitMinutes(_ value: Int) {
         guard canEditPolicy else {
             return
         }
-        sessionLimitMinutes = min(max(value, 1), 480)
+        sessionLimitMinutes = LockInPolicy.clamp(value, min: 1, max: 480)
         save()
     }
 
@@ -178,7 +224,7 @@ final class AppStore {
         guard canEditPolicy else {
             return
         }
-        sessionCountLimit = min(max(value, 1), 24)
+        sessionCountLimit = LockInPolicy.clamp(value, min: 1, max: 24)
         save()
     }
 
@@ -186,7 +232,7 @@ final class AppStore {
         guard canEditPolicy else {
             return
         }
-        cooldownMinutes = min(max(value, 1), 1440)
+        cooldownMinutes = LockInPolicy.clamp(value, min: 1, max: 1440)
         save()
     }
 
@@ -194,7 +240,7 @@ final class AppStore {
         guard canEditPolicy else {
             return
         }
-        resetHour = min(max(value, 0), 23)
+        resetHour = LockInPolicy.clamp(value, min: 0, max: 23)
         save()
     }
 
@@ -202,17 +248,17 @@ final class AppStore {
         guard canEditPolicy else {
             return
         }
-        resetMinute = min(max(value, 0), 59)
+        resetMinute = LockInPolicy.clamp(value, min: 0, max: 59)
         save()
     }
 
     func resetIfNeeded(now: Date = Date()) {
         let windowStart = dayWindow.currentStart(for: now)
         var didReset = false
-        for rule in rules {
-            if records[rule.id]?.windowStart != windowStart {
-                records[rule.id] = UsageRecord(
-                    ruleID: rule.id,
+        for ruleID in allRuleIDs {
+            if records[ruleID]?.windowStart != windowStart {
+                records[ruleID] = UsageRecord(
+                    ruleID: ruleID,
                     windowStart: windowStart,
                     secondsUsed: 0,
                     warningSent: false,
@@ -253,13 +299,13 @@ final class AppStore {
         } else {
             cooldownUntil = now.addingTimeInterval(TimeInterval(cooldownMinutes * 60))
         }
-        for rule in rules {
-            if var record = records[rule.id] {
+        for ruleID in allRuleIDs {
+            if var record = records[ruleID] {
                 record.isBlocked = true
-                records[rule.id] = record
+                records[ruleID] = record
             }
         }
-        blockerState = .active(rules.count)
+        blockerState = .active(allRuleIDs.count)
         save()
     }
 
@@ -279,9 +325,9 @@ final class AppStore {
 
     private func clearSession(now: Date) {
         let windowStart = dayWindow.currentStart(for: now)
-        for rule in rules {
-            records[rule.id] = UsageRecord(
-                ruleID: rule.id,
+        for ruleID in allRuleIDs {
+            records[ruleID] = UsageRecord(
+                ruleID: ruleID,
                 windowStart: windowStart,
                 secondsUsed: 0,
                 warningSent: false,
@@ -329,5 +375,9 @@ final class AppStore {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    var allRuleIDs: [UUID] {
+        rules.map(\.id) + applicationRules.map(\.id)
     }
 }

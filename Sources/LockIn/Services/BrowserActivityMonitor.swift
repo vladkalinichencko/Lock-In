@@ -20,8 +20,14 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
 
     private let supportedBrowsers: [String: BrowserScript] = [
         "com.apple.Safari": .safari,
+        "com.brave.Browser": .chromium(appName: "Brave Browser"),
         "com.google.Chrome": .chromium(appName: "Google Chrome"),
-        "company.thebrowser.Browser": .chromium(appName: "Arc")
+        "com.microsoft.edgemac": .chromium(appName: "Microsoft Edge"),
+        "com.operasoftware.Opera": .chromium(appName: "Opera"),
+        "com.vivaldi.Vivaldi": .chromium(appName: "Vivaldi"),
+        "company.thebrowser.Browser": .chromium(appName: "Arc"),
+        "company.thebrowser.dia": .chromium(appName: "Dia"),
+        "org.chromium.Chromium": .chromium(appName: "Chromium")
     ]
 
     func currentActivity() -> BrowserActivity? {

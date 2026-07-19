@@ -1,7 +1,8 @@
 # Serious Enforcement Architecture
 
-The current prototype uses browser Automation for Safari, Google Chrome, and
-Arc. It does not install DNS resolvers, edit `/etc/hosts`, or run a DNS daemon.
+The current Mac prototype uses browser Automation for Safari and Chromium-family
+browsers, plus frontmost-application observation for selected Mac apps. It does
+not install DNS resolvers, edit `/etc/hosts`, or run a DNS daemon.
 
 That is the right implementation family for focused-tab timing, because browser
 Automation can answer "what URL is the user actually looking at right now?"
@@ -59,12 +60,19 @@ The menu bar app should be only the control surface:
 
 The current enforcement loop should:
 
-- Read the active tab URL from Safari, Chrome, and Arc once per second.
+- Read the active tab URL from each supported browser once per second.
+- Observe the frontmost Mac application and match it by bundle identifier.
 - Count one shared allowance when the active URL matches any configured domain
-  or subdomain.
+  or subdomain, or when the frontmost app is selected.
 - Redirect the active matching tab to the bundled block page after the allowance
   is used.
+- Terminate a selected frontmost app after the allowance is used.
 - Avoid VPN DNS interaction completely.
+
+The iPhone and iPad targets use Family Controls, Device Activity, and Managed
+Settings instead. These frameworks are unavailable to native macOS apps, so a
+shared product can reuse policy semantics and persistence shapes, but enforcement
+must remain behind platform-specific adapters.
 
 A future harder enforcement process would be separate:
 

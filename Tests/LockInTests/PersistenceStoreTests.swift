@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import LockIn
 
 final class PersistenceStoreTests: XCTestCase {
@@ -8,8 +9,10 @@ final class PersistenceStoreTests: XCTestCase {
             .appending(path: "state.json")
         let store = PersistenceStore(fileURL: fileURL)
         let rule = BlockRule(domain: "x.com")
+        let applicationRule = ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")
         let snapshot = AppSnapshot(
             rules: [rule],
+            applicationRules: [applicationRule],
             records: [
                 UsageRecord(
                     ruleID: rule.id,
@@ -33,6 +36,7 @@ final class PersistenceStoreTests: XCTestCase {
         let loaded = try store.load()
 
         XCTAssertEqual(loaded.rules, snapshot.rules)
+        XCTAssertEqual(loaded.applicationRules, [applicationRule])
         XCTAssertEqual(loaded.records, snapshot.records)
         XCTAssertEqual(loaded.sessionLimitMinutes, 45)
         XCTAssertEqual(loaded.sessionCountLimit, 4)

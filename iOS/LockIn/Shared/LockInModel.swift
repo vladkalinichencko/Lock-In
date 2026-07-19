@@ -28,11 +28,11 @@ struct LockInSnapshot: Codable, Equatable {
         warningSentForSession: Bool = false
     ) {
         self.selection = selection
-        self.sessionLimitMinutes = Self.clamp(sessionLimitMinutes, min: 1, max: 480)
-        self.sessionCountLimit = Self.clamp(sessionCountLimit, min: 1, max: 24)
-        self.breakMinutes = Self.clamp(breakMinutes, min: 1, max: 1440)
-        self.resetHour = Self.clamp(resetHour, min: 0, max: 23)
-        self.resetMinute = Self.clamp(resetMinute, min: 0, max: 59)
+        self.sessionLimitMinutes = LockInPolicy.clamp(sessionLimitMinutes, min: 1, max: 480)
+        self.sessionCountLimit = LockInPolicy.clamp(sessionCountLimit, min: 1, max: 24)
+        self.breakMinutes = LockInPolicy.clamp(breakMinutes, min: 1, max: 1440)
+        self.resetHour = LockInPolicy.clamp(resetHour, min: 0, max: 23)
+        self.resetMinute = LockInPolicy.clamp(resetMinute, min: 0, max: 59)
         self.completedSessionCount = max(0, completedSessionCount)
         self.cumulativeSecondsUsed = max(0, cumulativeSecondsUsed)
         self.currentSessionSecondsUsed = max(0, currentSessionSecondsUsed)
@@ -41,11 +41,18 @@ struct LockInSnapshot: Codable, Equatable {
     }
 
     var totalSecondsAllowed: Int {
-        sessionLimitMinutes * sessionCountLimit * 60
+        LockInPolicy.totalSecondsAllowed(
+            sessionMinutes: sessionLimitMinutes,
+            sessionCount: sessionCountLimit
+        )
     }
 
     var canEditPolicy: Bool {
-        cumulativeSecondsUsed == 0 && completedSessionCount == 0 && cooldownUntil == nil
+        LockInPolicy.canEdit(
+            cumulativeSecondsUsed: cumulativeSecondsUsed,
+            completedSessionCount: completedSessionCount,
+            cooldownUntil: cooldownUntil
+        )
     }
 
     var hasSelection: Bool {
@@ -55,7 +62,6 @@ struct LockInSnapshot: Codable, Equatable {
     }
 
     static func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
-        Swift.min(Swift.max(value, minimum), maximum)
+        LockInPolicy.clamp(value, min: minimum, max: maximum)
     }
 }
-

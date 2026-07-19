@@ -105,8 +105,37 @@ final class UsageControllerTests: XCTestCase {
 
         XCTAssertEqual(store.totalSecondsUsed, 25 * 60)
         XCTAssertEqual(store.sessionSecondsUsed, 25 * 60)
-        XCTAssertEqual(notifications.warningDomains, ["Selected websites"])
+        XCTAssertEqual(notifications.warningDomains, ["Selected websites and apps"])
         XCTAssertTrue(store.records.values.allSatisfy(\.warningSent))
+    }
+
+    func testTickCountsAndBlocksSelectedApplication() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.updateSessionLimitMinutes(1)
+        let rule = ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")
+        store.applicationRules = [rule]
+        store.resetIfNeeded()
+        store.recordUsage(ruleID: rule.id, seconds: 59)
+        let applicationMonitor = FakeApplicationActivityMonitor(
+            activity: ApplicationActivity(
+                name: "TV",
+                bundleIdentifier: "com.apple.TV",
+                processIdentifier: 42
+            )
+        )
+        let controller = UsageController(
+            store: store,
+            browserMonitor: FakeBrowserActivityMonitor(activity: nil),
+            applicationMonitor: applicationMonitor,
+            notifications: FakeNotificationService(),
+            blockPageURL: URL(string: "file:///blocked.html")
+        )
+
+        await controller.tick()
+
+        XCTAssertEqual(store.totalSecondsUsed, 60)
+        XCTAssertEqual(store.activeRuleIDs, Set([rule.id]))
+        XCTAssertEqual(applicationMonitor.blockedActivity, applicationMonitor.activity)
     }
 
     func testTickDoesNotSendWarningTwice() async {
@@ -242,4 +271,22 @@ private final class FakeNotificationService: UserNotifying {
         warningDomains.append(domain)
     }
 
+}
+
+@MainActor
+private final class FakeApplicationActivityMonitor: ApplicationActivityMonitoring {
+    var activity: ApplicationActivity?
+    var blockedActivity: ApplicationActivity?
+
+    init(activity: ApplicationActivity?) {
+        self.activity = activity
+    }
+
+    func currentActivity() -> ApplicationActivity? {
+        activity
+    }
+
+    func block(_ activity: ApplicationActivity) {
+        blockedActivity = activity
+    }
 }
