@@ -9,7 +9,7 @@ Mac and iPhone have a focus duration field, a native Start focus button, and a p
 1. The user rejected "полностью поменял вообще весь дизайн" and requested "Верни точно дизайн, который был". Preserve the original system menu, background, layout, and control styles from 41e837a. Requested features belong inside that layout; do not replace the presentation with a new window, grouped Form, or custom visual treatment.
 2. The user rejected live menu resizing as "рамка в рамке" and requested a stable layout with reserved space for states. Use the original NSHostingView. The focus field and button stay in place; a countdown overlays the button label while focus disables both controls. Break and removal controls stay visible and become disabled. A two-line footer holds errors or break status.
 3. The user reported that the menu exceeded its content size and requested "не делай эти значения хардкоженными". MenuBarView uses fixedSize() to report its natural dimensions, including natural rule-list height. NSMenuDelegate.menuWillOpen fits the hosting view to that content before presentation. Focus transitions keep the same layout; rule-list edits are reflected in the menu's dimensions at the next opening.
-4. Launch must create only the status-bar item. The Mac entry point runs NSApplication with its existing AppDelegate; SwiftUI is used only for menu content. An empty Settings scene creates a real settings window and has no role in this app. LLDB inspection of the preceding installed build found com_apple_SwiftUI_Settings_window among NSApplication.shared.windows.
+4. Launch must create only the status-bar item. The Mac entry point runs NSApplication with its existing AppDelegate; SwiftUI is used only for menu content. An empty Settings scene creates a real settings window and has no role in this app. LLDB inspection of the preceding installed build found com_apple_SwiftUI_Settings_window among NSApplication.shared.windows. After installing 0c0dd57 and restarting, the window inventory contained only NSStatusBarWindow; the settings window was absent. All 25 Mac tests passed.
 
 Dia URL reads and redirects use the focused tab in the front window's active profile, including pinned tabs. The installed Dia scripting dictionary exposes isFocused. Historical Lock In logs contained failed active-tab reads; the original rule matched youtube.com/shorts correctly. The focused-tab query returned the current URL in a live read-only check. Actual Shorts playback and redirect still need a user check; the regression test exercises matching, allowance consumption, and redirect through the controller.
 
@@ -41,6 +41,12 @@ Install and restart the Mac app, including its guardian and Shortcuts metadata:
 ```
 
 The install command needs host access for /Applications, LaunchAgents, and process control. It preserves Library/Application Support/LockIn/state.json. For read-only macOS diagnostics denied by the sandbox, retry with explicit escalation.
+
+Inspect this app's window classes at startup, with debugger access, then detach:
+
+```sh
+xcrun lldb --batch -n LockIn -o 'expr -l swift -- import AppKit' -o 'expr -l swift -- NSApplication.shared.windows.map { (String(describing: type(of: $0)), $0.identifier?.rawValue ?? "nil", $0.isVisible) }' -o 'detach'
+```
 
 iOS build and tests, with host access to CoreSimulator:
 
