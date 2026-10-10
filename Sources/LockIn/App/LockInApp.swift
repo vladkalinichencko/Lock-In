@@ -14,7 +14,7 @@ struct LockInApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var runtime: AppRuntime?
     private var statusItem: NSStatusItem?
 
@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
+        menu.delegate = self
         let menuItem = NSMenuItem()
         let menuView = NSHostingView(rootView: MenuBarView(store: runtime.store))
         menuView.frame.size = menuView.fittingSize
@@ -51,6 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         self.statusItem = statusItem
         updateStatusIcon()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard let view = menu.item(at: 0)?.view else { return }
+        view.frame.size = view.fittingSize
     }
 
     private func updateStatusIcon() {

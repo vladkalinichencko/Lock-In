@@ -13,9 +13,15 @@ final class MenuSizingTests: XCTestCase {
         ))
         let view = NSHostingView(rootView: MenuBarView(store: store))
         view.frame.size = view.fittingSize
+        let menu = NSMenu()
+        let item = NSMenuItem()
+        item.view = view
+        menu.addItem(item)
+        let delegate = AppDelegate()
         let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView?.addSubview(view)
         let initialHeight = view.frame.height
+        let initialWidth = view.frame.width
 
         store.startFocus(minutes: 25)
         try await Task.sleep(for: .milliseconds(100))
@@ -41,13 +47,19 @@ final class MenuSizingTests: XCTestCase {
 
         store.sessionCountLimit = 1
         store.browserError = nil
-        store.addRule(domain: "youtube.com/shorts")
+        store.addRule(domain: "a-very-long-website-name.example.com/longer-path")
         try await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
+        XCTAssertGreaterThan(view.fittingSize.height, initialHeight)
+        XCTAssertGreaterThan(view.fittingSize.width, initialWidth)
+        delegate.menuWillOpen(menu)
+        XCTAssertEqual(view.frame.size, view.fittingSize)
 
         store.remove(rule: try XCTUnwrap(store.rules.last))
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
+        XCTAssertEqual(view.fittingSize.width, initialWidth, accuracy: 1)
+        delegate.menuWillOpen(menu)
+        XCTAssertEqual(view.frame.size, view.fittingSize)
 
         store.focusMinutes = 0
         store.cooldownUntil = Date().addingTimeInterval(60)

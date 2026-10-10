@@ -7,12 +7,6 @@ struct MenuBarView: View {
     @State private var newDomain = ""
     @State private var inputError: String?
     @FocusState private var domainFieldFocused: Bool
-    private let ruleSlots: Int
-
-    init(store: AppStore) {
-        self.store = store
-        ruleSlots = max(1, store.allRuleIDs.count)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -68,52 +62,49 @@ struct MenuBarView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(store.rules) { rule in
-                        HStack(spacing: 8) {
-                            Text(rule.domain)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            Text(usedText(secondsUsed(for: rule)))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 64, alignment: .trailing)
-                            Button {
-                                store.remove(rule: rule)
-                            } label: {
-                                Image(systemName: "xmark")
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!store.canRemove(rule: rule))
-                            .help("Remove")
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(store.rules) { rule in
+                    HStack(spacing: 8) {
+                        Text(rule.domain)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                        Text(usedText(secondsUsed(for: rule)))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                        Button {
+                            store.remove(rule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
                         }
+                        .buttonStyle(.plain)
+                        .disabled(!store.canRemove(rule: rule))
+                        .help("Remove")
                     }
+                }
 
-                    ForEach(store.applicationRules) { rule in
-                        HStack(spacing: 8) {
-                            Text(rule.name)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 64, alignment: .trailing)
-                            Button {
-                                store.remove(applicationRule: rule)
-                            } label: {
-                                Image(systemName: "xmark")
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!store.canRemove(applicationRule: rule))
-                            .help("Remove")
+                ForEach(store.applicationRules) { rule in
+                    HStack(spacing: 8) {
+                        Text(rule.name)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                        Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 64, alignment: .trailing)
+                        Button {
+                            store.remove(applicationRule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
                         }
+                        .buttonStyle(.plain)
+                        .disabled(!store.canRemove(applicationRule: rule))
+                        .help("Remove")
                     }
                 }
             }
-            .frame(height: CGFloat(ruleSlots) * 24 - 8)
 
             Divider()
 
@@ -180,7 +171,7 @@ struct MenuBarView: View {
                 }
         }
         .padding(12)
-        .frame(width: 280)
+        .fixedSize()
         .onAppear {
             store.refreshGuardianStatus()
         }
