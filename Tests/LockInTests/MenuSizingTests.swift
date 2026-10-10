@@ -21,6 +21,15 @@ final class MenuSizingTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
 
+        store.toggleFocusPause()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
+        XCTAssertNotNil(NSImage(systemSymbolName: store.statusSymbolName, accessibilityDescription: nil))
+        store.toggleFocusPause()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
+        XCTAssertNotNil(NSImage(systemSymbolName: store.statusSymbolName, accessibilityDescription: nil))
+
         store.expireFocusIfNeeded(now: Date().addingTimeInterval(1501))
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)

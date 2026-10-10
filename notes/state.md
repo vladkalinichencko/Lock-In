@@ -2,7 +2,7 @@
 
 ## Current state
 
-Mac and iPhone have a focus duration field and a native Start focus button. During focus, all selected websites and apps are blocked until the saved absolute deadline. Focus blocks do not spend the normal usage allowance. Daily resets, existing breaks, and focus expiry preserve each other's restrictions. The Mac uses the original NSStatusItem and NSMenu with its original 280-point layout. Focus controls follow the existing field and button styles. The iPhone retains its original List and usage header.
+Mac and iPhone have a focus duration field, a native Start focus button, and a pause/resume button beside it. Pause freezes the countdown while all selected websites and apps remain blocked. focusPausedAt is persisted alongside focusUntil; resuming shifts the deadline by the paused duration. Focus blocks do not spend the normal usage allowance. Daily resets, existing breaks, and focus expiry preserve each other's restrictions. The Mac uses the original NSStatusItem and NSMenu with its original 280-point layout. Its status icon is hand.raised.fill when idle, timer during focus, and pause.circle on pause. Focus controls follow the existing field and button styles. The iPhone retains its original List and usage header.
 
 ## Standing correction
 
@@ -13,11 +13,11 @@ Dia URL reads and redirects use the focused tab in the front window's active pro
 
 StartFocusIntent is available to Shortcuts on both platforms. An omitted duration uses the value saved in the app. The user will choose the system Focus mode later. No Focus automation has been configured.
 
-iPhone focus uses a separate one-shot Device Activity schedule and reconciles its shield with existing cooldowns. Duration is 15–1440 minutes, because Device Activity requires a minimum 15-minute interval. Mac duration is 1–1440 minutes. Mobile configuration requires Screen Time authorization and a selection. The shield displays the focus end time.
+iPhone focus uses a separate one-shot Device Activity schedule and reconciles its shield with existing cooldowns. Duration is 15–1440 minutes, because Device Activity requires a minimum 15-minute interval. Pause saves its state before stopping focus monitoring, keeping the shield active. Resume schedules an interval ending at the new deadline with the original duration, allowing the current interval to cover a remainder under 15 minutes. Schedule end components round up to a whole second so the expiry callback runs after the saved deadline. Mac duration is 1–1440 minutes. Mobile configuration requires Screen Time authorization and a selection. The shield displays the focus end time or paused state.
 
 ## Verification and deployment
 
-- 2026-10-10: 23 Mac tests passed. MenuSizingTests checks that the actual fitting height stays constant across focus start/expiry, errors, policy changes, rule addition/removal, invalid duration, and cooldown, using an offscreen AppKit container. The shared focus control also compiles for iOS. The preceding iOS validation passed 10 tests on the iPhone 17 simulator with iOS 27 and the unsigned device build. Environment: Xcode 27, macOS 27.
+- 2026-10-10: 25 Mac tests and 12 iOS tests passed on macOS 27 and the iPhone 17 simulator with iOS 27. The unsigned iOS device build succeeded. Pause tests cover persistence, blocking after the original deadline, resuming with the same remaining time, and a short resumed iOS interval. MenuSizingTests checks constant fitting height through focus start, pause, resume, expiry, errors, policy changes, rule addition/removal, invalid duration, and cooldown, using an offscreen AppKit container. It also verifies that the native status symbols exist. Environment: Xcode 27.
 - swiftlint passed for the new focus views and intent. Periphery found no unused code in the SwiftPM index. SwiftFormat reported range-spacing and conditional-compilation indentation preferences; repository formatting was preserved.
 - /Applications/Lock In.app was replaced with the current build and restarted through script/build_and_run.sh --install. The user's website list and usage policy were preserved.
 - Physical iPhone and iPad were unavailable. Screen Time enforcement on a physical device and Focus-triggered Shortcuts execution remain unverified. Xcode reported an SSU archive error after extracting valid intent metadata; both iOS builds completed successfully.

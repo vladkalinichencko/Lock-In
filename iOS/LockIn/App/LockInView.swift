@@ -12,11 +12,18 @@ struct LockInView: View {
                     FocusView(
                         minutes: $store.focusMinutes,
                         until: store.snapshot.focusUntil,
+                        pausedAt: store.snapshot.focusPausedAt,
                         minimumMinutes: 15,
                         canStart: store.isAuthorized && store.snapshot.hasSelection
                     ) {
                         do {
                             try store.startFocus(minutes: store.focusMinutes)
+                        } catch {
+                            store.errorMessage = error.localizedDescription
+                        }
+                    } togglePause: {
+                        do {
+                            try store.toggleFocusPause()
                         } catch {
                             store.errorMessage = error.localizedDescription
                         }

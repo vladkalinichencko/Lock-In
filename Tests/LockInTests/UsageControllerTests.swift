@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class UsageControllerTests: XCTestCase {
+    func testPausedFocusKeepsSitesAndAppsBlockedPastOriginalDeadline() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.applicationRules = [ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")]
+        let now = Date()
+        store.startFocus(minutes: 1, now: now.addingTimeInterval(-90))
+        store.toggleFocusPause(now: now.addingTimeInterval(-60))
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia", bundleIdentifier: "company.thebrowser.dia", url: URL(string: "https://x.com")!
+        ))
+        let application = FakeApplicationActivityMonitor(activity: ApplicationActivity(
+            name: "TV", bundleIdentifier: "com.apple.TV", processIdentifier: 42
+        ))
+        let controller = UsageController(
+            store: store, browserMonitor: browser, applicationMonitor: application,
+            notifications: FakeNotificationService(), blockPageURL: URL(string: "file:///blocked.html")!
+        )
+        await controller.tick()
+        XCTAssertNotNil(browser.redirectedURL)
+        XCTAssertEqual(application.blockedActivity, application.activity)
+        XCTAssertEqual(store.totalSecondsUsed, 0)
+        XCTAssertNotNil(store.focusPausedAt)
+        XCTAssertTrue(store.isFocusing())
+    }
+
     func testFocusSurvivesDailyResetAndDoesNotBlockUnselectedSites() async {
         let store = AppStore(persistence: temporaryPersistence())
         store.startFocus(minutes: 25)

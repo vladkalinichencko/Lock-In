@@ -3,6 +3,32 @@ import XCTest
 
 @MainActor
 final class AppStorePolicyTests: XCTestCase {
+    func testPausedFocusSurvivesReloadAndResumesWithSameRemainingTime() throws {
+        let persistence = PersistenceStore(fileURL: FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString).appending(path: "state.json"))
+        let store = AppStore(persistence: persistence)
+        let start = Date()
+        store.startFocus(minutes: 1, now: start)
+        XCTAssertEqual(store.statusSymbolName, "timer")
+        store.toggleFocusPause(now: start.addingTimeInterval(20))
+        let restored = AppStore(persistence: persistence)
+        XCTAssertEqual(restored.focusPausedAt, start.addingTimeInterval(20))
+        XCTAssertEqual(restored.statusSymbolName, "pause.circle")
+        restored.expireFocusIfNeeded(now: start.addingTimeInterval(120))
+        XCTAssertTrue(restored.isBlocking(now: start.addingTimeInterval(120)))
+        XCTAssertFalse(restored.canEditPolicy)
+
+        restored.toggleFocusPause(now: start.addingTimeInterval(120))
+        XCTAssertNil(restored.focusPausedAt)
+        XCTAssertEqual(try XCTUnwrap(restored.focusUntil).timeIntervalSince(start), 160, accuracy: 0.001)
+        XCTAssertEqual(restored.statusSymbolName, "timer")
+        restored.expireFocusIfNeeded(now: start.addingTimeInterval(160))
+        XCTAssertFalse(restored.isFocusing(now: start.addingTimeInterval(160)))
+        XCTAssertEqual(restored.statusSymbolName, "hand.raised.fill")
+        restored.toggleFocusPause(now: start.addingTimeInterval(180))
+        XCTAssertNil(restored.focusPausedAt)
+    }
+
     func testPolicyValuesAreClamped() {
         let store = AppStore(
             persistence: PersistenceStore(

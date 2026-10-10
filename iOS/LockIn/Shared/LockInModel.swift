@@ -15,6 +15,7 @@ struct LockInSnapshot: Codable, Equatable {
     var warningSentForSession: Bool
     var focusMinutes: Int?
     var focusUntil: Date?
+    var focusPausedAt: Date?
 
     init(
         selection: FamilyActivitySelection = FamilyActivitySelection(),
@@ -29,7 +30,8 @@ struct LockInSnapshot: Codable, Equatable {
         cooldownUntil: Date? = nil,
         warningSentForSession: Bool = false,
         focusMinutes: Int? = nil,
-        focusUntil: Date? = nil
+        focusUntil: Date? = nil,
+        focusPausedAt: Date? = nil
     ) {
         self.selection = selection
         self.sessionLimitMinutes = LockInPolicy.clamp(sessionLimitMinutes, min: 1, max: 480)
@@ -44,6 +46,7 @@ struct LockInSnapshot: Codable, Equatable {
         self.warningSentForSession = warningSentForSession
         self.focusMinutes = focusMinutes
         self.focusUntil = focusUntil
+        self.focusPausedAt = focusPausedAt
     }
 
     var totalSecondsAllowed: Int {
@@ -62,7 +65,17 @@ struct LockInSnapshot: Codable, Equatable {
     }
 
     func isFocusing(at date: Date = Date()) -> Bool {
-        focusUntil.map { date < $0 } ?? false
+        focusUntil.map { (focusPausedAt ?? date) < $0 } ?? false
+    }
+
+    mutating func toggleFocusPause(at date: Date = Date()) {
+        guard isFocusing(at: date), let focusUntil else { return }
+        if let pausedAt = focusPausedAt {
+            self.focusUntil = focusUntil.addingTimeInterval(date.timeIntervalSince(pausedAt))
+            focusPausedAt = nil
+        } else {
+            focusPausedAt = date
+        }
     }
 
     func isBlocking(at date: Date = Date()) -> Bool {

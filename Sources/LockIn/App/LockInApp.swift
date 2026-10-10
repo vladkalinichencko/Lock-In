@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SwiftUI
 
 @main
@@ -49,5 +50,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(menuItem)
         statusItem.menu = menu
         self.statusItem = statusItem
+        updateStatusIcon()
+    }
+
+    private func updateStatusIcon() {
+        guard let store = runtime?.store, let button = statusItem?.button else { return }
+        withObservationTracking {
+            button.image = NSImage(systemSymbolName: store.statusSymbolName, accessibilityDescription: "Lock In")
+            button.image?.isTemplate = true
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.updateStatusIcon() }
+        }
     }
 }

@@ -26,6 +26,10 @@ struct LockInEnforcer {
         )
     }
 
+    func stopFocusMonitoring() {
+        activityCenter.stopMonitoring([LockInConstants.focusActivityName])
+    }
+
     func reconcileShield(snapshot: LockInSnapshot, at date: Date = Date()) {
         if snapshot.isBlocking(at: date) {
             applyShield(selection: snapshot.selection)

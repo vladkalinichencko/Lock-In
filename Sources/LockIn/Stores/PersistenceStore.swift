@@ -15,6 +15,7 @@ struct AppSnapshot: Codable {
     var cumulativeSecondsUsed: Int
     var focusMinutes: Int
     var focusUntil: Date?
+    var focusPausedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case rules
@@ -31,6 +32,7 @@ struct AppSnapshot: Codable {
         case cumulativeSecondsUsed
         case focusMinutes
         case focusUntil
+        case focusPausedAt
         case dailyAllowanceMinutes
         case dayStartHour
         case dayStartMinute
@@ -50,7 +52,8 @@ struct AppSnapshot: Codable {
         completedSessionCount: Int = 0,
         cumulativeSecondsUsed: Int = 0,
         focusMinutes: Int = 25,
-        focusUntil: Date? = nil
+        focusUntil: Date? = nil,
+        focusPausedAt: Date? = nil
     ) {
         self.rules = rules
         self.applicationRules = applicationRules
@@ -66,6 +69,7 @@ struct AppSnapshot: Codable {
         self.cumulativeSecondsUsed = cumulativeSecondsUsed
         self.focusMinutes = focusMinutes
         self.focusUntil = focusUntil
+        self.focusPausedAt = focusPausedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -91,6 +95,7 @@ struct AppSnapshot: Codable {
             ?? records.reduce(0) { $0 + $1.secondsUsed }
         focusMinutes = try container.decodeIfPresent(Int.self, forKey: .focusMinutes) ?? 25
         focusUntil = try container.decodeIfPresent(Date.self, forKey: .focusUntil)
+        focusPausedAt = try container.decodeIfPresent(Date.self, forKey: .focusPausedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -109,6 +114,7 @@ struct AppSnapshot: Codable {
         try container.encode(cumulativeSecondsUsed, forKey: .cumulativeSecondsUsed)
         try container.encode(focusMinutes, forKey: .focusMinutes)
         try container.encodeIfPresent(focusUntil, forKey: .focusUntil)
+        try container.encodeIfPresent(focusPausedAt, forKey: .focusPausedAt)
     }
 }
 

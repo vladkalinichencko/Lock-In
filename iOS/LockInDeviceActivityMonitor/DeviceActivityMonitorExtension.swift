@@ -116,7 +116,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func finishFocus() {
         do {
             var snapshot = try storage.load()
-            guard let end = snapshot.focusUntil, end <= Date() else { return }
+            guard snapshot.focusPausedAt == nil, let end = snapshot.focusUntil, end <= Date() else { return }
             snapshot.focusUntil = nil
             try storage.save(snapshot)
             enforcer.reconcileShield(snapshot: snapshot)

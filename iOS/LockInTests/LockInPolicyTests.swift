@@ -2,6 +2,20 @@ import XCTest
 @testable import LockIn
 
 final class LockInPolicyTests: XCTestCase {
+    func testPausePreservesBlockingAndRemainingTimeAfterReload() throws {
+        let start = Date(timeIntervalSince1970: 1000)
+        var snapshot = LockInSnapshot(focusMinutes: 15, focusUntil: start.addingTimeInterval(900))
+        snapshot.toggleFocusPause(at: start.addingTimeInterval(810))
+        snapshot = try JSONDecoder().decode(LockInSnapshot.self, from: JSONEncoder().encode(snapshot))
+        XCTAssertEqual(snapshot.focusPausedAt, start.addingTimeInterval(810))
+        XCTAssertTrue(snapshot.isBlocking(at: start.addingTimeInterval(3600)))
+        snapshot.toggleFocusPause(at: start.addingTimeInterval(3600))
+        XCTAssertNil(snapshot.focusPausedAt)
+        XCTAssertEqual(snapshot.focusUntil, start.addingTimeInterval(3690))
+        XCTAssertTrue(snapshot.isBlocking(at: start.addingTimeInterval(3689)))
+        XCTAssertFalse(snapshot.isBlocking(at: start.addingTimeInterval(3690)))
+    }
+
     func testFocusBlocksUntilItsDeadlineAndPreservesCooldown() throws {
         let start = Date(timeIntervalSince1970: 1000)
         let end = start.addingTimeInterval(1500)
@@ -24,6 +38,7 @@ final class LockInPolicyTests: XCTestCase {
         let data = try JSONEncoder().encode(snapshot)
         let restored = try JSONDecoder().decode(LockInSnapshot.self, from: data)
         XCTAssertNil(restored.focusUntil)
+        XCTAssertNil(restored.focusPausedAt)
         XCTAssertNil(restored.focusMinutes)
         XCTAssertFalse(restored.isFocusing())
     }

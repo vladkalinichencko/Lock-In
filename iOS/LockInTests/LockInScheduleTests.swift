@@ -2,6 +2,16 @@ import XCTest
 @testable import LockIn
 
 final class LockInScheduleTests: XCTestCase {
+    func testResumedFocusScheduleUsesCurrentIntervalForShortRemainder() throws {
+        let end = Date().addingTimeInterval(90.5)
+        let schedule = LockInSchedule.focusSchedule(from: end.addingTimeInterval(-900), until: end)
+        let interval = try XCTUnwrap(schedule.nextInterval)
+        XCTAssertLessThanOrEqual(interval.start, Date())
+        XCTAssertGreaterThanOrEqual(interval.duration, 900)
+        XCTAssertGreaterThanOrEqual(interval.end, end)
+        XCTAssertLessThan(interval.end.timeIntervalSince(end), 1)
+    }
+
     func testFocusScheduleKeepsExactDatesAcrossMidnight() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

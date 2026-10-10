@@ -3,13 +3,16 @@ import SwiftUI
 struct FocusView: View {
     @Binding var minutes: Int
     var until: Date?
+    var pausedAt: Date?
     var minimumMinutes: Int
     var canStart: Bool
     var start: () -> Void
+    var togglePause: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let isFocusing = until.map { $0 > context.date } ?? false
+            let referenceDate = pausedAt ?? context.date
+            let isFocusing = until.map { $0 > referenceDate } ?? false
             let isValid = (minimumMinutes...1440).contains(minutes)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -30,23 +33,36 @@ struct FocusView: View {
                     Text("min")
                         .foregroundStyle(.secondary)
                 }
-                Button(action: start) {
-                    Text("Start focus")
-                        .opacity(isFocusing ? 0 : 1)
-                        .accessibilityHidden(isFocusing)
-                        .frame(maxWidth: .infinity)
-                        .overlay {
-                            if let until, isFocusing {
-                                Text(timerInterval: context.date...until, countsDown: true)
-                                    .monospacedDigit()
-                                    .multilineTextAlignment(.center)
-                                    .accessibilityLabel("Focus time remaining")
+                HStack(spacing: 8) {
+                    Button(action: start) {
+                        Text("Start focus")
+                            .opacity(isFocusing ? 0 : 1)
+                            .accessibilityHidden(isFocusing)
+                            .frame(maxWidth: .infinity)
+                            .overlay {
+                                if let until, isFocusing {
+                                    Text(timerInterval: referenceDate...until, pauseTime: pausedAt, countsDown: true)
+                                        .monospacedDigit()
+                                        .multilineTextAlignment(.center)
+                                        .accessibilityLabel("Focus time remaining")
+                                }
                             }
-                        }
-                }
+                    }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .disabled(isFocusing || !canStart || !isValid)
+                    Button(action: togglePause) {
+                        Image(systemName: pausedAt == nil ? "pause.fill" : "play.fill")
+                            .frame(width: 20)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(!isFocusing)
+                    .accessibilityLabel(pausedAt == nil ? "Pause focus timer" : "Resume focus timer")
+                    #if os(macOS)
+                    .help(pausedAt == nil ? "Pause timer" : "Resume timer")
+                    #endif
+                }
             }
             .frame(maxWidth: .infinity)
         }

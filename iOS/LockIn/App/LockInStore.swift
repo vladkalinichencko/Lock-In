@@ -40,6 +40,7 @@ final class LockInStore {
         try enforcer.startFocusMonitoring(from: now, until: end)
         snapshot.focusMinutes = minutes
         snapshot.focusUntil = end
+        snapshot.focusPausedAt = nil
         try storage.save(snapshot)
         enforcer.reconcileShield(snapshot: snapshot, at: now)
         errorMessage = nil
@@ -53,7 +54,7 @@ final class LockInStore {
             return
         }
         guard isAuthorized else { return }
-        if let end = snapshot.focusUntil, end <= Date() {
+        if snapshot.focusPausedAt == nil, let end = snapshot.focusUntil, end <= Date() {
             snapshot.focusUntil = nil
             do {
                 try storage.save(snapshot)
@@ -62,6 +63,23 @@ final class LockInStore {
             }
         }
         enforcer.reconcileShield(snapshot: snapshot)
+    }
+
+    func toggleFocusPause(now: Date = Date()) throws {
+        var updated = try storage.load()
+        guard updated.isFocusing(at: now) else { return }
+        updated.toggleFocusPause(at: now)
+        if updated.focusPausedAt == nil, let end = updated.focusUntil {
+            let duration = TimeInterval((updated.focusMinutes ?? 25) * 60)
+            try enforcer.startFocusMonitoring(from: end.addingTimeInterval(-duration), until: end)
+        }
+        try storage.save(updated)
+        snapshot = updated
+        if updated.focusPausedAt != nil {
+            enforcer.stopFocusMonitoring()
+        }
+        enforcer.reconcileShield(snapshot: snapshot, at: now)
+        errorMessage = nil
     }
 
     init() {

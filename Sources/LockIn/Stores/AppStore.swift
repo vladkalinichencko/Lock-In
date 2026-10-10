@@ -16,6 +16,7 @@ final class AppStore {
     var cooldownUntil: Date?
     var focusMinutes = 25
     var focusUntil: Date?
+    var focusPausedAt: Date?
     var completedSessionCount: Int = 0
     var cumulativeSecondsUsed: Int = 0
     var currentActivity: BrowserActivity?
@@ -67,6 +68,7 @@ final class AppStore {
             cumulativeSecondsUsed = snapshot.cumulativeSecondsUsed
             focusMinutes = snapshot.focusMinutes
             focusUntil = snapshot.focusUntil
+            focusPausedAt = snapshot.focusPausedAt
         } catch {
             lastError = error.localizedDescription
             rules = [
@@ -92,7 +94,8 @@ final class AppStore {
                     completedSessionCount: completedSessionCount,
                     cumulativeSecondsUsed: cumulativeSecondsUsed,
                     focusMinutes: focusMinutes,
-                    focusUntil: focusUntil
+                    focusUntil: focusUntil,
+                    focusPausedAt: focusPausedAt
                 )
             )
         } catch {
@@ -132,7 +135,12 @@ final class AppStore {
     }
 
     func isFocusing(now: Date = Date()) -> Bool {
-        focusUntil.map { now < $0 } ?? false
+        focusUntil.map { (focusPausedAt ?? now) < $0 } ?? false
+    }
+
+    var statusSymbolName: String {
+        guard isFocusing(now: now) else { return "hand.raised.fill" }
+        return focusPausedAt == nil ? "timer" : "pause.circle"
     }
 
     func isBlocking(now: Date = Date()) -> Bool {
@@ -145,13 +153,26 @@ final class AppStore {
         }
         focusMinutes = minutes
         focusUntil = now.addingTimeInterval(TimeInterval(minutes * 60))
+        focusPausedAt = nil
         self.now = now
         save()
     }
 
     func expireFocusIfNeeded(now: Date = Date()) {
-        guard let focusUntil, now >= focusUntil else { return }
+        guard focusPausedAt == nil, let focusUntil, now >= focusUntil else { return }
         self.focusUntil = nil
+        save()
+    }
+
+    func toggleFocusPause(now: Date = Date()) {
+        guard isFocusing(now: now), let focusUntil else { return }
+        if let pausedAt = focusPausedAt {
+            self.focusUntil = focusUntil.addingTimeInterval(now.timeIntervalSince(pausedAt))
+            focusPausedAt = nil
+        } else {
+            focusPausedAt = now
+        }
+        self.now = now
         save()
     }
 
@@ -403,6 +424,7 @@ final class AppStore {
             cumulativeSecondsUsed = snapshot.cumulativeSecondsUsed
             focusMinutes = snapshot.focusMinutes
             focusUntil = snapshot.focusUntil
+            focusPausedAt = snapshot.focusPausedAt
             currentRuleID = snapshot.activeRuleIDs.first
             currentRuleSeenAt = snapshot.activeRuleIDs.isEmpty ? nil : Date()
             lastError = nil

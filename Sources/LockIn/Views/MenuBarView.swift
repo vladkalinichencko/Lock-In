@@ -28,10 +28,13 @@ struct MenuBarView: View {
             FocusView(
                 minutes: Binding(get: { store.focusMinutes }, set: { store.focusMinutes = $0; store.save() }),
                 until: store.focusUntil,
+                pausedAt: store.focusPausedAt,
                 minimumMinutes: 1,
                 canStart: !store.allRuleIDs.isEmpty
             ) {
                 store.startFocus(minutes: store.focusMinutes)
+            } togglePause: {
+                store.toggleFocusPause()
             }
 
             Divider()

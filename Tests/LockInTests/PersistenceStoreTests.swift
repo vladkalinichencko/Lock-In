@@ -81,5 +81,6 @@ final class PersistenceStoreTests: XCTestCase {
         XCTAssertEqual(loaded.cumulativeSecondsUsed, 0)
         XCTAssertEqual(loaded.focusMinutes, 25)
         XCTAssertNil(loaded.focusUntil)
+        XCTAssertNil(loaded.focusPausedAt)
     }
 }

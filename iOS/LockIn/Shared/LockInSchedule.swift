@@ -4,6 +4,7 @@ import Foundation
 enum LockInSchedule {
     static func focusSchedule(from start: Date, until end: Date, calendar: Calendar = .current) -> DeviceActivitySchedule {
         let components: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
+        let end = Date(timeIntervalSince1970: end.timeIntervalSince1970.rounded(.up))
         return DeviceActivitySchedule(
             intervalStart: calendar.dateComponents(components, from: start),
             intervalEnd: calendar.dateComponents(components, from: end),
