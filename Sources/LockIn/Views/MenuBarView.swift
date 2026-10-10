@@ -7,6 +7,12 @@ struct MenuBarView: View {
     @State private var newDomain = ""
     @State private var inputError: String?
     @FocusState private var domainFieldFocused: Bool
+    private let ruleSlots: Int
+
+    init(store: AppStore) {
+        self.store = store
+        ruleSlots = max(1, store.allRuleIDs.count)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -30,13 +36,6 @@ struct MenuBarView: View {
 
             Divider()
 
-            if let message = store.lastError ?? store.browserError {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-            }
-
             HStack(spacing: 6) {
                 TextField("website.com", text: $newDomain)
                     .textFieldStyle(.roundedBorder)
@@ -50,12 +49,6 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Add website")
-            }
-
-            if let inputError {
-                Text(inputError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
             }
 
             HStack {
@@ -72,49 +65,52 @@ struct MenuBarView: View {
 
             Divider()
 
-            ForEach(store.rules) { rule in
-                HStack(spacing: 8) {
-                    Text(rule.domain)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                    Text(usedText(secondsUsed(for: rule)))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 64, alignment: .trailing)
-                    if store.canRemove(rule: rule) {
-                        Button {
-                            store.remove(rule: rule)
-                        } label: {
-                            Image(systemName: "xmark")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(store.rules) { rule in
+                        HStack(spacing: 8) {
+                            Text(rule.domain)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            Text(usedText(secondsUsed(for: rule)))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 64, alignment: .trailing)
+                            Button {
+                                store.remove(rule: rule)
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!store.canRemove(rule: rule))
+                            .help("Remove")
                         }
-                        .buttonStyle(.plain)
-                        .help("Remove")
                     }
-                }
-            }
 
-            ForEach(store.applicationRules) { rule in
-                HStack(spacing: 8) {
-                    Text(rule.name)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                    Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 64, alignment: .trailing)
-                    if store.canRemove(applicationRule: rule) {
-                        Button {
-                            store.remove(applicationRule: rule)
-                        } label: {
-                            Image(systemName: "xmark")
+                    ForEach(store.applicationRules) { rule in
+                        HStack(spacing: 8) {
+                            Text(rule.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 64, alignment: .trailing)
+                            Button {
+                                store.remove(applicationRule: rule)
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!store.canRemove(applicationRule: rule))
+                            .help("Remove")
                         }
-                        .buttonStyle(.plain)
-                        .help("Remove")
                     }
                 }
             }
+            .frame(height: CGFloat(ruleSlots) * 24 - 8)
 
             Divider()
 
@@ -144,20 +140,18 @@ struct MenuBarView: View {
                     .disabled(!store.canEditPolicy)
             }
 
-            if store.sessionCountLimit > 1 {
-                HStack {
-                    Text("Break")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    TextField("", value: cooldownMinutes, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 54)
-                        .multilineTextAlignment(.trailing)
-                        .onSubmit { store.save() }
-                        .disabled(!store.canEditPolicy)
-                    Text("min")
-                        .foregroundStyle(.secondary)
-                }
+            HStack {
+                Text("Break")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                TextField("", value: cooldownMinutes, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 54)
+                    .multilineTextAlignment(.trailing)
+                    .onSubmit { store.save() }
+                    .disabled(!store.canEditPolicy || store.sessionCountLimit == 1)
+                Text("min")
+                    .foregroundStyle(.secondary)
             }
 
             HStack {
@@ -170,11 +164,17 @@ struct MenuBarView: View {
                     .disabled(!store.canEditPolicy)
             }
 
-            if let cooldownText {
-                Text(cooldownText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(" ")
+                .font(.caption)
+                .lineLimit(2, reservesSpace: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .hidden()
+                .overlay(alignment: .topLeading) {
+                    Text(inputError ?? store.lastError ?? store.browserError ?? cooldownText ?? "")
+                        .font(.caption)
+                        .foregroundStyle(inputError != nil || store.lastError != nil || store.browserError != nil ? Color.red : Color.secondary)
+                        .lineLimit(2)
+                }
         }
         .padding(12)
         .frame(width: 280)

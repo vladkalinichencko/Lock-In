@@ -43,22 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         let menuItem = NSMenuItem()
-        let menuView = MenuHostingView(rootView: MenuBarView(store: runtime.store))
+        let menuView = NSHostingView(rootView: MenuBarView(store: runtime.store))
         menuView.frame.size = menuView.fittingSize
         menuItem.view = menuView
         menu.addItem(menuItem)
         statusItem.menu = menu
         self.statusItem = statusItem
-    }
-}
-
-@MainActor
-final class MenuHostingView: NSHostingView<MenuBarView> {
-    override func layout() {
-        super.layout()
-        let size = fittingSize
-        if frame.size != size {
-            setFrameSize(size)
-        }
     }
 }
