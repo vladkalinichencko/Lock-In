@@ -26,7 +26,7 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
         "com.operasoftware.Opera": .chromium(appName: "Opera"),
         "com.vivaldi.Vivaldi": .chromium(appName: "Vivaldi"),
         "company.thebrowser.Browser": .chromium(appName: "Arc"),
-        "company.thebrowser.dia": .chromium(appName: "Dia"),
+        "company.thebrowser.dia": .dia,
         "org.chromium.Chromium": .chromium(appName: "Chromium")
     ]
 
@@ -63,12 +63,15 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
 
 private enum BrowserScript {
     case safari
+    case dia
     case chromium(appName: String)
 
     var displayName: String {
         switch self {
         case .safari:
             return "Safari"
+        case .dia:
+            return "Dia"
         case .chromium(let appName):
             return appName
         }
@@ -82,6 +85,14 @@ private enum BrowserScript {
             tell application "Safari"
                 if not (exists front document) then return ""
                 return URL of front document
+            end tell
+            """
+        case .dia:
+            source = """
+            tell application "Dia"
+                if (count of windows) is 0 then return ""
+                set focusedTab to first tab of front window whose isFocused is true
+                return URL of focusedTab as text
             end tell
             """
         case .chromium(let appName):
@@ -125,6 +136,14 @@ private enum BrowserScript {
             tell application "Safari"
                 if not (exists front document) then return
                 set URL of front document to "\(escapedURL)"
+            end tell
+            """
+        case .dia:
+            source = """
+            tell application "Dia"
+                if (count of windows) is 0 then return
+                set focusedTab to first tab of front window whose isFocused is true
+                set URL of focusedTab to "\(escapedURL)"
             end tell
             """
         case .chromium(let appName):

@@ -4,6 +4,36 @@ import XCTest
 
 @MainActor
 final class UsageControllerTests: XCTestCase {
+    func testDiaShortsConsumesAllowanceAndBlocksWithoutBlockingRegularVideos() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.rules = [BlockRule(domain: "youtube.com/shorts")]
+        store.updateSessionLimitMinutes(1)
+        let rule = store.rules[0]
+        store.recordUsage(ruleID: rule.id, seconds: 59)
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia",
+            bundleIdentifier: "company.thebrowser.dia",
+            url: URL(string: "https://www.youtube.com/shorts/abc?feature=share")!
+        ))
+        let controller = UsageController(
+            store: store,
+            browserMonitor: browser,
+            applicationMonitor: FakeApplicationActivityMonitor(activity: nil),
+            notifications: FakeNotificationService(),
+            blockPageURL: URL(string: "file:///blocked.html")!
+        )
+
+        await controller.tick()
+        XCTAssertEqual(store.totalSecondsUsed, 60)
+        XCTAssertNotNil(browser.redirectedURL)
+
+        browser.redirectedURL = nil
+        browser.activity?.url = URL(string: "https://www.youtube.com/watch?v=abc")!
+        await controller.tick()
+        XCTAssertNil(browser.redirectedURL)
+        XCTAssertEqual(store.totalSecondsUsed, 60)
+    }
+
     func testTickCountsMatchingActiveBrowserTabEverySecond() async {
         let store = AppStore(persistence: temporaryPersistence())
         let rule = store.rules[0]
