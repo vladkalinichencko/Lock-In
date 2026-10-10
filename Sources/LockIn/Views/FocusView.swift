@@ -9,24 +9,23 @@ struct FocusView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let until, until > context.date {
-                    Label("Focus on", systemImage: "lock.fill")
-                        .font(.headline)
-                    Text(timerInterval: context.date...until, countsDown: true)
-                        .font(.system(size: 44, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .contentTransition(.numericText(countsDown: true))
-                    Text("Until \(until.formatted(date: .omitted, time: .shortened))")
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Focus")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(timerInterval: context.date...until, countsDown: true)
+                            .font(.system(.body, design: .monospaced))
+                    }
                 } else {
                     HStack {
                         Text("Focus")
-                            .font(.headline)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         TextField("Minutes", value: $minutes, format: .number)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 64)
+                            .frame(width: 54)
                             .accessibilityLabel("Focus duration in minutes")
                             #if os(iOS)
                             .keyboardType(.numberPad)
@@ -36,7 +35,12 @@ struct FocusView: View {
                         Text("min")
                             .foregroundStyle(.secondary)
                     }
-                    startButton
+                    Button(action: start) {
+                        Text("Start focus")
+                            .frame(maxWidth: .infinity)
+                    }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
                         .disabled(!canStart || !(minimumMinutes...1440).contains(minutes))
                     if !(minimumMinutes...1440).contains(minutes) {
                         Text("\(minimumMinutes)–1440 min")
@@ -46,25 +50,6 @@ struct FocusView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-        }
-    }
-
-    @ViewBuilder
-    private var startButton: some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
-            Button(action: start) {
-                Label("Start focus", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.glassProminent)
-            .controlSize(.extraLarge)
-        } else {
-            Button(action: start) {
-                Label("Start focus", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
     }
 }

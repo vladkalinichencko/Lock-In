@@ -2,7 +2,11 @@
 
 ## Current state
 
-Mac and iPhone have a focus duration field and a native Start focus button. During focus, all selected websites and apps are blocked until the saved absolute deadline. Focus blocks do not spend the normal usage allowance. Daily resets, existing breaks, and focus expiry preserve each other's restrictions. The Mac uses a SwiftUI MenuBarExtra window and a grouped Form; both platforms use the shared FocusView.
+Mac and iPhone have a focus duration field and a native Start focus button. During focus, all selected websites and apps are blocked until the saved absolute deadline. Focus blocks do not spend the normal usage allowance. Daily resets, existing breaks, and focus expiry preserve each other's restrictions. The Mac uses the original NSStatusItem and NSMenu with its original 280-point layout. Focus controls follow the existing field and button styles. The iPhone retains its original List and usage header.
+
+## Standing correction
+
+1. The user rejected "полностью поменял вообще весь дизайн" and requested "Верни точно дизайн, который был". Preserve the original system menu, background, dimensions, layout, and control styles from 41e837a. Requested features belong inside that layout; do not replace the presentation with a new window, grouped Form, or custom visual treatment.
 
 Dia URL reads and redirects use the focused tab in the front window's active profile, including pinned tabs. The installed Dia scripting dictionary exposes isFocused. Historical Lock In logs contained failed active-tab reads; the original rule matched youtube.com/shorts correctly. The focused-tab query returned the current URL in a live read-only check. Actual Shorts playback and redirect still need a user check; the regression test exercises matching, allowance consumption, and redirect through the controller.
 

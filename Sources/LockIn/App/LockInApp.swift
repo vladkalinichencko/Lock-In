@@ -4,20 +4,19 @@ import SwiftUI
 @main
 struct LockInApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var runtime = AppRuntime()
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView(store: runtime.store)
-        } label: {
-            Label("Lock In", systemImage: runtime.store.isFocusing(now: runtime.store.now) ? "lock.fill" : "hand.raised.fill")
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var runtime: AppRuntime?
+    private var statusItem: NSStatusItem?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         let currentPID = ProcessInfo.processInfo.processIdentifier
         let duplicate = NSWorkspace.shared.runningApplications.contains { application in
@@ -32,5 +31,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        let runtime = AppRuntime()
+        self.runtime = runtime
+
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Lock In")
+            button.image?.isTemplate = true
+            button.imagePosition = .imageOnly
+        }
+
+        let menu = NSMenu()
+        let menuItem = NSMenuItem()
+        let menuView = NSHostingView(rootView: MenuBarView(store: runtime.store))
+        menuView.frame.size = menuView.fittingSize
+        menuItem.view = menuView
+        menu.addItem(menuItem)
+        statusItem.menu = menu
+        self.statusItem = statusItem
     }
 }

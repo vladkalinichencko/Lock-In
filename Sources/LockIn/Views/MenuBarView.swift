@@ -9,12 +9,13 @@ struct MenuBarView: View {
     @FocusState private var domainFieldFocused: Bool
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Lock In").font(.headline)
+                Text("Lock In")
+                    .font(.headline)
                 Spacer()
                 Text("\(usedText(store.totalSecondsUsed)) / \(usedText(store.totalSecondsAllowed))")
-                    .monospacedDigit()
+                    .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
 
@@ -27,118 +28,180 @@ struct MenuBarView: View {
                 store.startFocus(minutes: store.focusMinutes)
             }
 
-            if let cooldown = store.cooldownUntil, cooldown > store.now {
-                Label("Blocked until \(cooldown.formatted(date: .omitted, time: .shortened))", systemImage: "lock.fill")
-                    .foregroundStyle(.secondary)
-            } else if !store.isFocusing(now: store.now), !store.allRuleIDs.isEmpty, store.browserError == nil {
-                Label("Limits active", systemImage: "checkmark.shield")
-                    .foregroundStyle(.secondary)
-            }
+            Divider()
 
             if let message = store.lastError ?? store.browserError {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .lineLimit(2)
             }
 
-            Form {
-                Section("Websites") {
-                    HStack {
-                        TextField("website.com/path", text: $newDomain)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($domainFieldFocused)
-                            .onSubmit(addDomain)
-                            .onChange(of: newDomain) { _, _ in inputError = nil }
-                        Button(action: addDomain) {
-                            Image(systemName: "plus")
-                        }
-                        .help("Add website")
+            HStack(spacing: 6) {
+                TextField("website.com", text: $newDomain)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($domainFieldFocused)
+                    .onSubmit(addDomain)
+                    .onChange(of: newDomain) { _, _ in
+                        inputError = nil
                     }
-                    if let inputError {
-                        Text(inputError).font(.caption).foregroundStyle(.red)
-                    }
-                    ForEach(store.rules) { rule in
-                        HStack {
-                            Text(rule.domain).lineLimit(1).truncationMode(.middle)
-                            Spacer()
-                            Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                            if store.canRemove(rule: rule) {
-                                Button {
-                                    store.remove(rule: rule)
-                                } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                                .help("Remove website")
-                            }
-                        }
-                    }
+                Button(action: addDomain) {
+                    Image(systemName: "plus")
                 }
+                .buttonStyle(.bordered)
+                .help("Add website")
+            }
 
-                Section("Applications") {
-                    ForEach(store.applicationRules) { rule in
-                        HStack {
-                            Text(rule.name).lineLimit(1)
-                            Spacer()
-                            Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                            if store.canRemove(applicationRule: rule) {
-                                Button {
-                                    store.remove(applicationRule: rule)
-                                } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                                .help("Remove application")
-                            }
-                        }
-                    }
-                    Button("Add application", systemImage: "plus", action: addApplication)
-                        .disabled(!store.canEditPolicy)
-                }
+            if let inputError {
+                Text(inputError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
-                DisclosureGroup("Limits") {
-                    HStack {
-                        Text("Session")
-                        Spacer()
-                        TextField("Minutes", value: sessionLimitMinutes, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 54)
-                        Text("min").foregroundStyle(.secondary)
-                    }
-                    Stepper("Sessions: \(store.sessionCountLimit)", value: sessionCountLimit, in: 1...24)
-                    if store.sessionCountLimit > 1 {
-                        HStack {
-                            Text("Break")
-                            Spacer()
-                            TextField("Minutes", value: cooldownMinutes, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 54)
-                            Text("min").foregroundStyle(.secondary)
-                        }
-                    }
-                    DatePicker("Reset time", selection: resetTime, displayedComponents: .hourAndMinute)
+            HStack {
+                Text("Applications")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(action: addApplication) {
+                    Image(systemName: "plus")
                 }
+                .buttonStyle(.bordered)
                 .disabled(!store.canEditPolicy)
+                .help("Add application")
             }
-            .formStyle(.grouped)
+
+            Divider()
+
+            ForEach(store.rules) { rule in
+                HStack(spacing: 8) {
+                    Text(rule.domain)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    Text(usedText(secondsUsed(for: rule)))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .trailing)
+                    if store.canRemove(rule: rule) {
+                        Button {
+                            store.remove(rule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove")
+                    }
+                }
+            }
+
+            ForEach(store.applicationRules) { rule in
+                HStack(spacing: 8) {
+                    Text(rule.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    Text(usedText(store.records[rule.id]?.secondsUsed ?? 0))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .trailing)
+                    if store.canRemove(applicationRule: rule) {
+                        Button {
+                            store.remove(applicationRule: rule)
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove")
+                    }
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Text("Session")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                TextField("", value: sessionLimitMinutes, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 54)
+                    .multilineTextAlignment(.trailing)
+                    .onSubmit { store.save() }
+                    .disabled(!store.canEditPolicy)
+                Text("min")
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text("Sessions")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(store.sessionCountLimit)")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 28, alignment: .trailing)
+                Stepper("", value: sessionCountLimit, in: 1...24)
+                    .labelsHidden()
+                    .disabled(!store.canEditPolicy)
+            }
+
+            if store.sessionCountLimit > 1 {
+                HStack {
+                    Text("Break")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    TextField("", value: cooldownMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 54)
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit { store.save() }
+                        .disabled(!store.canEditPolicy)
+                    Text("min")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Text("Reset time")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                DatePicker("", selection: resetTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(!store.canEditPolicy)
+            }
+
+            if let cooldownText {
+                Text(cooldownText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(20)
-        .frame(width: 380, height: 600)
-        .onAppear { store.refreshGuardianStatus() }
+        .padding(12)
+        .frame(width: 280)
+        .onAppear {
+            store.refreshGuardianStatus()
+        }
     }
 
     private var sessionLimitMinutes: Binding<Int> {
-        Binding(get: { store.sessionLimitMinutes }, set: { store.updateSessionLimitMinutes($0) })
+        Binding(
+            get: { store.sessionLimitMinutes },
+            set: { store.updateSessionLimitMinutes($0) }
+        )
     }
 
     private var sessionCountLimit: Binding<Int> {
-        Binding(get: { store.sessionCountLimit }, set: { store.updateSessionCountLimit($0) })
+        Binding(
+            get: { store.sessionCountLimit },
+            set: { store.updateSessionCountLimit($0) }
+        )
     }
 
     private var cooldownMinutes: Binding<Int> {
-        Binding(get: { store.cooldownMinutes }, set: { store.updateCooldownMinutes($0) })
+        Binding(
+            get: { store.cooldownMinutes },
+            set: { store.updateCooldownMinutes($0) }
+        )
     }
 
     private var resetTime: Binding<Date> {
@@ -157,8 +220,29 @@ struct MenuBarView: View {
         )
     }
 
+    private func secondsUsed(for rule: BlockRule) -> Int {
+        store.records[rule.id]?.secondsUsed ?? 0
+    }
+
     private func usedText(_ seconds: Int) -> String {
-        Duration.seconds(seconds).formatted(.time(pattern: .hourMinuteSecond))
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let remainingSeconds = seconds % 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m \(remainingSeconds)s"
+        }
+        if minutes > 0 {
+            return "\(minutes)m \(remainingSeconds)s"
+        }
+        return "\(remainingSeconds)s"
+    }
+
+    private var cooldownText: String? {
+        guard let cooldownUntil = store.cooldownUntil else {
+            return nil
+        }
+        let seconds = max(0, Int(cooldownUntil.timeIntervalSince(store.now).rounded(.up)))
+        return "Break \(usedText(seconds))"
     }
 
     private func addDomain() {
@@ -166,7 +250,7 @@ struct MenuBarView: View {
             newDomain = ""
             inputError = nil
         } else {
-            inputError = "Use website.com or website.com/path."
+            inputError = "Use domain.com or domain.com/path. Queries are not supported."
         }
         domainFieldFocused = true
     }
@@ -177,7 +261,9 @@ struct MenuBarView: View {
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: "/System/Applications")
         panel.prompt = "Add"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
         if !store.addApplication(url: url) {
             inputError = "Choose a macOS application other than Lock In."
         }

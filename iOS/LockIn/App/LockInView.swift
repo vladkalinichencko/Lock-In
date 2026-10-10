@@ -21,14 +21,6 @@ struct LockInView: View {
                             store.errorMessage = error.localizedDescription
                         }
                     }
-                    .padding(.vertical, 12)
-                    if let end = store.snapshot.cooldownUntil, end > Date() {
-                        Label("Blocked until \(end.formatted(date: .omitted, time: .shortened))", systemImage: "lock.fill")
-                            .foregroundStyle(.secondary)
-                    } else if store.isAuthorized, store.snapshot.hasSelection, !store.snapshot.isFocusing() {
-                        Label("Limits active", systemImage: "checkmark.shield")
-                            .foregroundStyle(.secondary)
-                    }
                 }
 
                 if !store.isAuthorized {
@@ -48,7 +40,7 @@ struct LockInView: View {
                     }
                 }
 
-                Section("Limits") {
+                Section {
                     HStack {
                         Text("Session")
                         Spacer()
@@ -101,8 +93,6 @@ struct LockInView: View {
                     }
                 }
             }
-            .navigationTitle("Lock In")
-            .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .scrollEdgeEffectStyle(.soft, for: .top)
