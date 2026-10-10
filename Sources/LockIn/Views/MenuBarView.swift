@@ -15,6 +15,24 @@ struct MenuBarView: View {
                     .font(.headline)
                 Spacer()
                 Text("\(usedText(store.totalSecondsUsed)) / \(usedText(store.totalSecondsAllowed))")
+                    .opacity(statusError != nil || cooldownText != nil ? 0 : 1)
+                    .overlay {
+                        if let error = statusError {
+                            Button {
+                                let alert = NSAlert()
+                                alert.messageText = "Lock In"
+                                alert.informativeText = error
+                                alert.runModal()
+                            } label: {
+                                Label("Error", systemImage: "exclamationmark.triangle")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+                            .help(error)
+                        } else if let cooldownText {
+                            Text(cooldownText)
+                        }
+                    }
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -157,18 +175,6 @@ struct MenuBarView: View {
                     .fixedSize()
                     .disabled(!store.canEditPolicy)
             }
-
-            Text(" ")
-                .font(.caption)
-                .lineLimit(2, reservesSpace: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .hidden()
-                .overlay(alignment: .topLeading) {
-                    Text(inputError ?? store.lastError ?? store.browserError ?? cooldownText ?? "")
-                        .font(.caption)
-                        .foregroundStyle(inputError != nil || store.lastError != nil || store.browserError != nil ? Color.red : Color.secondary)
-                        .lineLimit(2)
-                }
         }
         .padding(12)
         .fixedSize()
@@ -237,6 +243,10 @@ struct MenuBarView: View {
         }
         let seconds = max(0, Int(cooldownUntil.timeIntervalSince(store.now).rounded(.up)))
         return "Break \(usedText(seconds))"
+    }
+
+    private var statusError: String? {
+        inputError ?? store.lastError ?? store.browserError
     }
 
     private func addDomain() {
