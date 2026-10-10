@@ -42,6 +42,25 @@ cp "$GUARDIAN_BINARY" "$APP_MACOS/LockInGuardian"
 chmod +x "$APP_BINARY"
 chmod +x "$APP_MACOS/LockInGuardian"
 
+INTENTS_TMP="$(mktemp -d)"
+printf '%s\n' "$ROOT_DIR/Sources/LockIn/Models/StartFocusIntent.swift" > "$INTENTS_TMP/sources"
+find "$ROOT_DIR/.build" -path '*/Debug/LockIn-p.build/*/StartFocusIntent.swiftconstvalues' > "$INTENTS_TMP/constants"
+xcrun appintentsmetadataprocessor \
+  --toolchain-dir "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain" \
+  --module-name "$EXECUTABLE_NAME" \
+  --sdk-root "$(xcrun --sdk macosx --show-sdk-path)" \
+  --xcode-version "$(xcodebuild -version | awk '/Build version/ {print $3}')" \
+  --platform-family macOS \
+  --deployment-target "$MIN_SYSTEM_VERSION" \
+  --bundle-identifier "$BUNDLE_ID" \
+  --output "$APP_RESOURCES" \
+  --target-triple "$(uname -m)-apple-macos$MIN_SYSTEM_VERSION" \
+  --binary-file "$APP_BINARY" \
+  --source-file-list "$INTENTS_TMP/sources" \
+  --swift-const-vals-list "$INTENTS_TMP/constants" \
+  --compile-time-extraction
+rm -rf "$INTENTS_TMP"
+
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -156,6 +175,7 @@ HTML
 
 write_block_page "$APP_RESOURCES/blocked-until-break-ends.html" "Blocked until the break ends."
 write_block_page "$APP_RESOURCES/blocked-until-next-day.html" "Blocked until your next day."
+write_block_page "$APP_RESOURCES/blocked-until-focus-ends.html" "Focus is on."
 
 /usr/bin/xattr -cr "$APP_BUNDLE"
 /usr/bin/xattr -d com.apple.FinderInfo "$APP_BUNDLE" >/dev/null 2>&1 || true

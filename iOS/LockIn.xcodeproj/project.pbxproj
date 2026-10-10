@@ -34,6 +34,8 @@
 		010000000000000000000019 /* LockInPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* LockInPolicy.swift */; };
 		01000000000000000000001A /* LockInPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* LockInPolicy.swift */; };
 		01000000000000000000001B /* LockInPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* LockInPolicy.swift */; };
+		01000000000000000000001C /* FocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* FocusView.swift */; };
+		01000000000000000000001D /* StartFocusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* StartFocusIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +80,8 @@
 		010000000000000000000116 /* LockInShieldConfiguration.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LockInShieldConfiguration.entitlements; sourceTree = "<group>"; };
 		010000000000000000000117 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = AppIcon.icon; path = ../Assets/AppIcon.icon; sourceTree = "<group>"; };
 		010000000000000000000118 /* LockInPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LockInPolicy.swift; path = ../../Sources/LockIn/Models/LockInPolicy.swift; sourceTree = "<group>"; };
+		010000000000000000000119 /* FocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FocusView.swift; path = ../../Sources/LockIn/Views/FocusView.swift; sourceTree = "<group>"; };
+		01000000000000000000011A /* StartFocusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StartFocusIntent.swift; path = ../../Sources/LockIn/Models/StartFocusIntent.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* LockIn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LockIn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		010000000000000000000202 /* LockInDeviceActivityMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LockInDeviceActivityMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		010000000000000000000203 /* LockInShieldConfiguration.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LockInShieldConfiguration.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -116,6 +120,8 @@
 				010000000000000000000107 /* LockInSchedule.swift */,
 				010000000000000000000108 /* LockInEnforcer.swift */,
 				010000000000000000000118 /* LockInPolicy.swift */,
+				010000000000000000000119 /* FocusView.swift */,
+				01000000000000000000011A /* StartFocusIntent.swift */,
 				010000000000000000000111 /* Info.plist */,
 				010000000000000000000112 /* LockIn.entitlements */,
 			);
@@ -263,7 +269,7 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		010000000000000000000621 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (010000000000000000000001, 010000000000000000000002, 010000000000000000000003, 010000000000000000000004, 010000000000000000000005, 010000000000000000000006, 010000000000000000000007, 010000000000000000000008, 010000000000000000000019); runOnlyForDeploymentPostprocessing = 0; };
+		010000000000000000000621 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (010000000000000000000001, 010000000000000000000002, 010000000000000000000003, 010000000000000000000004, 010000000000000000000005, 010000000000000000000006, 010000000000000000000007, 010000000000000000000008, 010000000000000000000019, 01000000000000000000001C, 01000000000000000000001D); runOnlyForDeploymentPostprocessing = 0; };
 		010000000000000000000622 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (010000000000000000000009, 01000000000000000000000A, 01000000000000000000000B, 01000000000000000000000C, 01000000000000000000000D, 01000000000000000000000E, 01000000000000000000001A); runOnlyForDeploymentPostprocessing = 0; };
 		010000000000000000000623 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (01000000000000000000000F, 010000000000000000000010, 010000000000000000000011, 010000000000000000000012, 010000000000000000000013, 01000000000000000000001B); runOnlyForDeploymentPostprocessing = 0; };
 		010000000000000000000624 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (010000000000000000000014, 010000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };

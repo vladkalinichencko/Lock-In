@@ -21,6 +21,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         if activity == LockInConstants.breakActivityName {
             finishBreak()
+        } else if activity == LockInConstants.focusActivityName {
+            finishFocus()
         }
     }
 
@@ -45,7 +47,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             snapshot.cooldownUntil = nil
             snapshot.warningSentForSession = false
             try storage.save(snapshot)
-            enforcer.clearShield()
+            enforcer.reconcileShield(snapshot: snapshot)
         } catch {
             logger.error("Daily reset failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -102,12 +104,24 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             snapshot.cooldownUntil = nil
             snapshot.warningSentForSession = false
             try storage.save(snapshot)
-            enforcer.clearShield()
+            enforcer.reconcileShield(snapshot: snapshot)
             if snapshot.hasSelection {
                 try enforcer.startMonitoring(snapshot: snapshot)
             }
         } catch {
             logger.error("Break finish failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func finishFocus() {
+        do {
+            var snapshot = try storage.load()
+            guard let end = snapshot.focusUntil, end <= Date() else { return }
+            snapshot.focusUntil = nil
+            try storage.save(snapshot)
+            enforcer.reconcileShield(snapshot: snapshot)
+        } catch {
+            logger.error("Focus finish failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

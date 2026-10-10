@@ -8,6 +8,29 @@ struct LockInView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    FocusView(
+                        minutes: $store.focusMinutes,
+                        until: store.snapshot.focusUntil,
+                        minimumMinutes: 15,
+                        canStart: store.isAuthorized && store.snapshot.hasSelection
+                    ) {
+                        do {
+                            try store.startFocus(minutes: store.focusMinutes)
+                        } catch {
+                            store.errorMessage = error.localizedDescription
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    if let end = store.snapshot.cooldownUntil, end > Date() {
+                        Label("Blocked until \(end.formatted(date: .omitted, time: .shortened))", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
+                    } else if store.isAuthorized, store.snapshot.hasSelection, !store.snapshot.isFocusing() {
+                        Label("Limits active", systemImage: "checkmark.shield")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if !store.isAuthorized {
                     Section {
                         Button("Allow Screen Time Access") {
@@ -25,7 +48,7 @@ struct LockInView: View {
                     }
                 }
 
-                Section {
+                Section("Limits") {
                     HStack {
                         Text("Session")
                         Spacer()
@@ -78,6 +101,8 @@ struct LockInView: View {
                     }
                 }
             }
+            .navigationTitle("Lock In")
+            .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .scrollEdgeEffectStyle(.soft, for: .top)
@@ -89,10 +114,19 @@ struct LockInView: View {
                 store.refreshAuthorizationStatus()
                 await store.refreshNotificationStatus()
                 await store.requestNotificationAuthorizationOnLaunch()
+                while !Task.isCancelled {
+                    store.refreshState()
+                    do {
+                        try await Task.sleep(for: .seconds(1))
+                    } catch {
+                        break
+                    }
+                }
             }
             .onChange(of: scenePhase) { _, newValue in
                 if newValue == .active {
                     store.refreshAuthorizationStatus()
+                    store.refreshState()
                     Task {
                         await store.refreshNotificationStatus()
                     }

@@ -2,6 +2,32 @@ import XCTest
 @testable import LockIn
 
 final class LockInPolicyTests: XCTestCase {
+    func testFocusBlocksUntilItsDeadlineAndPreservesCooldown() throws {
+        let start = Date(timeIntervalSince1970: 1000)
+        let end = start.addingTimeInterval(1500)
+        var snapshot = LockInSnapshot(focusMinutes: 25, focusUntil: end)
+        XCTAssertTrue(snapshot.isFocusing(at: start))
+        XCTAssertTrue(snapshot.isBlocking(at: start))
+        XCTAssertFalse(snapshot.isBlocking(at: end))
+
+        snapshot.cooldownUntil = end.addingTimeInterval(600)
+        XCTAssertFalse(snapshot.isFocusing(at: end))
+        XCTAssertTrue(snapshot.isBlocking(at: end))
+
+        let restored = try JSONDecoder().decode(LockInSnapshot.self, from: JSONEncoder().encode(snapshot))
+        XCTAssertEqual(restored.focusUntil, end)
+        XCTAssertEqual(restored.focusMinutes, 25)
+    }
+
+    func testLegacySnapshotLoadsWithoutFocusSettings() throws {
+        let snapshot = LockInSnapshot()
+        let data = try JSONEncoder().encode(snapshot)
+        let restored = try JSONDecoder().decode(LockInSnapshot.self, from: data)
+        XCTAssertNil(restored.focusUntil)
+        XCTAssertNil(restored.focusMinutes)
+        XCTAssertFalse(restored.isFocusing())
+    }
+
     func testPolicyValuesAreClamped() {
         let snapshot = LockInSnapshot(
             sessionLimitMinutes: 0,

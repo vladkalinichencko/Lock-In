@@ -4,6 +4,76 @@ import XCTest
 
 @MainActor
 final class UsageControllerTests: XCTestCase {
+    func testFocusSurvivesDailyResetAndDoesNotBlockUnselectedSites() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.startFocus(minutes: 25)
+        let end = store.focusUntil
+        store.resetIfNeeded(now: Date().addingTimeInterval(24 * 3600))
+        XCTAssertEqual(store.focusUntil, end)
+
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia", bundleIdentifier: "company.thebrowser.dia", url: URL(string: "https://apple.com")!
+        ))
+        let controller = UsageController(
+            store: store, browserMonitor: browser, applicationMonitor: FakeApplicationActivityMonitor(activity: nil),
+            notifications: FakeNotificationService(), blockPageURL: URL(string: "file:///blocked.html")!
+        )
+        await controller.tick()
+        XCTAssertNil(browser.redirectedURL)
+        XCTAssertEqual(store.totalSecondsUsed, 0)
+    }
+
+    func testFocusBlocksSitesAndAppsWithoutSpendingAllowance() async {
+        let persistence = temporaryPersistence()
+        let store = AppStore(persistence: persistence)
+        let rule = ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")
+        store.applicationRules = [rule]
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia", bundleIdentifier: "company.thebrowser.dia", url: URL(string: "https://x.com")!
+        ))
+        let application = FakeApplicationActivityMonitor(activity: ApplicationActivity(
+            name: "TV", bundleIdentifier: "com.apple.TV", processIdentifier: 42
+        ))
+        store.resetIfNeeded()
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 10)
+        store.startFocus(minutes: 25)
+        let end = store.focusUntil!
+        let controller = UsageController(
+            store: store, browserMonitor: browser, applicationMonitor: application,
+            notifications: FakeNotificationService(), blockPageURL: URL(string: "file:///blocked.html")!
+        )
+
+        await controller.tick()
+
+        XCTAssertNotNil(browser.redirectedURL)
+        XCTAssertEqual(application.blockedActivity, application.activity)
+        XCTAssertEqual(store.totalSecondsUsed, 10)
+        XCTAssertNil(store.cooldownUntil)
+        XCTAssertFalse(store.canEditPolicy)
+        XCTAssertEqual(AppStore(persistence: persistence).focusUntil, end)
+
+        store.startFocus(minutes: 1)
+        XCTAssertEqual(store.focusUntil, end)
+        store.expireFocusIfNeeded(now: end)
+        browser.redirectedURL = nil
+        application.blockedActivity = nil
+        await controller.tick()
+        XCTAssertNil(browser.redirectedURL)
+        XCTAssertNil(application.blockedActivity)
+        XCTAssertEqual(store.totalSecondsUsed, 11)
+    }
+
+    func testFocusExpiryKeepsAnExistingCooldown() {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.resetIfNeeded()
+        store.startCooldown()
+        let cooldown = store.cooldownUntil
+        store.startFocus(minutes: 1)
+        store.expireFocusIfNeeded(now: store.focusUntil!)
+        XCTAssertEqual(store.cooldownUntil, cooldown)
+        XCTAssertTrue(store.isBlocking())
+    }
+
     func testDiaShortsConsumesAllowanceAndBlocksWithoutBlockingRegularVideos() async {
         let store = AppStore(persistence: temporaryPersistence())
         store.rules = [BlockRule(domain: "youtube.com/shorts")]

@@ -4,6 +4,7 @@ import Observation
 @Observable
 @MainActor
 final class AppStore {
+    static let shared = AppStore()
     var rules: [BlockRule] = []
     var applicationRules: [ApplicationRule] = []
     var records: [UUID: UsageRecord] = [:]
@@ -13,6 +14,8 @@ final class AppStore {
     var resetHour: Int = 6
     var resetMinute: Int = 0
     var cooldownUntil: Date?
+    var focusMinutes = 25
+    var focusUntil: Date?
     var completedSessionCount: Int = 0
     var cumulativeSecondsUsed: Int = 0
     var currentActivity: BrowserActivity?
@@ -23,6 +26,7 @@ final class AppStore {
     var blockerState: BlockerState = .idle
     var guardianStatus: GuardianStatus = .unknown
     var lastError: String?
+    var browserError: String?
     var now: Date = Date()
 
     private let persistence: PersistenceStore
@@ -61,6 +65,8 @@ final class AppStore {
             cooldownUntil = snapshot.cooldownUntil
             completedSessionCount = snapshot.completedSessionCount
             cumulativeSecondsUsed = snapshot.cumulativeSecondsUsed
+            focusMinutes = snapshot.focusMinutes
+            focusUntil = snapshot.focusUntil
         } catch {
             lastError = error.localizedDescription
             rules = [
@@ -84,7 +90,9 @@ final class AppStore {
                     resetMinute: resetMinute,
                     cooldownUntil: cooldownUntil,
                     completedSessionCount: completedSessionCount,
-                    cumulativeSecondsUsed: cumulativeSecondsUsed
+                    cumulativeSecondsUsed: cumulativeSecondsUsed,
+                    focusMinutes: focusMinutes,
+                    focusUntil: focusUntil
                 )
             )
         } catch {
@@ -116,11 +124,35 @@ final class AppStore {
     }
 
     var canEditPolicy: Bool {
-        LockInPolicy.canEdit(
+        !isFocusing(now: now) && LockInPolicy.canEdit(
             cumulativeSecondsUsed: totalSecondsUsed,
             completedSessionCount: completedSessionCount,
             cooldownUntil: cooldownUntil
         )
+    }
+
+    func isFocusing(now: Date = Date()) -> Bool {
+        focusUntil.map { now < $0 } ?? false
+    }
+
+    func isBlocking(now: Date = Date()) -> Bool {
+        isFocusing(now: now) || isCoolingDown(now: now)
+    }
+
+    func startFocus(minutes: Int, now: Date = Date()) {
+        guard !isFocusing(now: now), !allRuleIDs.isEmpty, (1...1440).contains(minutes) else {
+            return
+        }
+        focusMinutes = minutes
+        focusUntil = now.addingTimeInterval(TimeInterval(minutes * 60))
+        self.now = now
+        save()
+    }
+
+    func expireFocusIfNeeded(now: Date = Date()) {
+        guard let focusUntil, now >= focusUntil else { return }
+        self.focusUntil = nil
+        save()
     }
 
     func refreshGuardianStatus() {
@@ -369,6 +401,8 @@ final class AppStore {
             cooldownUntil = snapshot.cooldownUntil
             completedSessionCount = snapshot.completedSessionCount
             cumulativeSecondsUsed = snapshot.cumulativeSecondsUsed
+            focusMinutes = snapshot.focusMinutes
+            focusUntil = snapshot.focusUntil
             currentRuleID = snapshot.activeRuleIDs.first
             currentRuleSeenAt = snapshot.activeRuleIDs.isEmpty ? nil : Date()
             lastError = nil

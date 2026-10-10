@@ -16,7 +16,22 @@ struct LockInEnforcer {
     }
 
     func stopMonitoring() {
-        activityCenter.stopMonitoring([LockInConstants.activityName, LockInConstants.breakActivityName])
+        activityCenter.stopMonitoring([LockInConstants.activityName, LockInConstants.breakActivityName, LockInConstants.focusActivityName])
+    }
+
+    func startFocusMonitoring(from start: Date, until end: Date) throws {
+        try activityCenter.startMonitoring(
+            LockInConstants.focusActivityName,
+            during: LockInSchedule.focusSchedule(from: start, until: end)
+        )
+    }
+
+    func reconcileShield(snapshot: LockInSnapshot, at date: Date = Date()) {
+        if snapshot.isBlocking(at: date) {
+            applyShield(selection: snapshot.selection)
+        } else {
+            clearShield()
+        }
     }
 
     func startBreakMonitoring(from start: Date, until end: Date, calendar: Calendar = .current) throws {
@@ -36,6 +51,7 @@ struct LockInEnforcer {
         managedStore.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
         managedStore.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
         managedStore.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
+        managedStore.shield.webDomainCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
     }
 
     func clearShield() {

@@ -8,7 +8,7 @@ final class AppRuntime {
     private let controller: UsageController
 
     init() {
-        let store = AppStore()
+        let store = AppStore.shared
         self.store = store
         self.controller = UsageController(store: store)
         controller.start()

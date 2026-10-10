@@ -13,6 +13,8 @@ struct AppSnapshot: Codable {
     var cooldownUntil: Date?
     var completedSessionCount: Int
     var cumulativeSecondsUsed: Int
+    var focusMinutes: Int
+    var focusUntil: Date?
 
     enum CodingKeys: String, CodingKey {
         case rules
@@ -27,6 +29,8 @@ struct AppSnapshot: Codable {
         case cooldownUntil
         case completedSessionCount
         case cumulativeSecondsUsed
+        case focusMinutes
+        case focusUntil
         case dailyAllowanceMinutes
         case dayStartHour
         case dayStartMinute
@@ -44,7 +48,9 @@ struct AppSnapshot: Codable {
         resetMinute: Int,
         cooldownUntil: Date? = nil,
         completedSessionCount: Int = 0,
-        cumulativeSecondsUsed: Int = 0
+        cumulativeSecondsUsed: Int = 0,
+        focusMinutes: Int = 25,
+        focusUntil: Date? = nil
     ) {
         self.rules = rules
         self.applicationRules = applicationRules
@@ -58,6 +64,8 @@ struct AppSnapshot: Codable {
         self.cooldownUntil = cooldownUntil
         self.completedSessionCount = completedSessionCount
         self.cumulativeSecondsUsed = cumulativeSecondsUsed
+        self.focusMinutes = focusMinutes
+        self.focusUntil = focusUntil
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +89,8 @@ struct AppSnapshot: Codable {
         completedSessionCount = try container.decodeIfPresent(Int.self, forKey: .completedSessionCount) ?? 0
         cumulativeSecondsUsed = try container.decodeIfPresent(Int.self, forKey: .cumulativeSecondsUsed)
             ?? records.reduce(0) { $0 + $1.secondsUsed }
+        focusMinutes = try container.decodeIfPresent(Int.self, forKey: .focusMinutes) ?? 25
+        focusUntil = try container.decodeIfPresent(Date.self, forKey: .focusUntil)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -97,6 +107,8 @@ struct AppSnapshot: Codable {
         try container.encodeIfPresent(cooldownUntil, forKey: .cooldownUntil)
         try container.encode(completedSessionCount, forKey: .completedSessionCount)
         try container.encode(cumulativeSecondsUsed, forKey: .cumulativeSecondsUsed)
+        try container.encode(focusMinutes, forKey: .focusMinutes)
+        try container.encodeIfPresent(focusUntil, forKey: .focusUntil)
     }
 }
 

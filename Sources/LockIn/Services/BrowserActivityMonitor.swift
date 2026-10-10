@@ -10,12 +10,18 @@ struct BrowserActivity: Equatable {
 
 @MainActor
 protocol BrowserActivityMonitoring {
+    var errorMessage: String? { get }
     func currentActivity() -> BrowserActivity?
     func redirectActiveTab(in activity: BrowserActivity, to url: URL)
 }
 
+extension BrowserActivityMonitoring {
+    var errorMessage: String? { nil }
+}
+
 @MainActor
 final class BrowserActivityMonitor: BrowserActivityMonitoring {
+    private(set) var errorMessage: String?
     private let logger = Logger(subsystem: "com.local.LockIn", category: "browser")
 
     private let supportedBrowsers: [String: BrowserScript] = [
@@ -31,6 +37,7 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
     ]
 
     func currentActivity() -> BrowserActivity? {
+        errorMessage = nil
         guard let application = NSWorkspace.shared.frontmostApplication,
               let bundleIdentifier = application.bundleIdentifier else {
             logger.debug("No frontmost bundle identifier")
@@ -42,6 +49,7 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
         }
 
         guard let url = script.activeTabURL(logger: logger) else {
+            errorMessage = "Cannot read the focused \(script.displayName) tab. Check Automation access in System Settings."
             logger.warning("Could not read active tab URL for \(bundleIdentifier, privacy: .public)")
             return nil
         }
@@ -91,7 +99,7 @@ private enum BrowserScript {
             source = """
             tell application "Dia"
                 if (count of windows) is 0 then return ""
-                set focusedTab to first tab of front window whose isFocused is true
+                set focusedTab to first tab of active profile of front window whose isFocused is true
                 return URL of focusedTab as text
             end tell
             """
@@ -117,7 +125,7 @@ private enum BrowserScript {
         }
 
         guard let output = descriptor.stringValue,
-              let url = URL(string: output) else {
+              let url = URL(string: output), url.scheme != nil else {
             logger.debug("Browser AppleScript returned empty or invalid URL")
             return nil
         }
@@ -142,7 +150,7 @@ private enum BrowserScript {
             source = """
             tell application "Dia"
                 if (count of windows) is 0 then return
-                set focusedTab to first tab of front window whose isFocused is true
+                set focusedTab to first tab of active profile of front window whose isFocused is true
                 set URL of focusedTab to "\(escapedURL)"
             end tell
             """

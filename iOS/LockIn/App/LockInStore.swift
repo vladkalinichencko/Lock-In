@@ -6,6 +6,7 @@ import UserNotifications
 @Observable
 @MainActor
 final class LockInStore {
+    static let shared = LockInStore()
     var snapshot = LockInSnapshot()
     var authorizationStatus = AuthorizationCenter.shared.authorizationStatus
     var isPickerPresented = false
@@ -15,6 +16,53 @@ final class LockInStore {
 
     private let storage = LockInSharedStore()
     private let enforcer = LockInEnforcer()
+
+    var focusMinutes: Int {
+        get { snapshot.focusMinutes ?? 25 }
+        set {
+            snapshot.focusMinutes = newValue
+            do {
+                try storage.save(snapshot)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func startFocus(minutes: Int, now: Date = Date()) throws {
+        snapshot = try storage.load()
+        refreshAuthorizationStatus()
+        guard isAuthorized else { throw LockInStoreError.screenTimeRequired }
+        guard snapshot.hasSelection else { throw LockInStoreError.selectionRequired }
+        guard (15...1440).contains(minutes) else { throw LockInStoreError.invalidFocusDuration }
+        guard !snapshot.isFocusing(at: now) else { return }
+        let end = Date(timeIntervalSince1970: (now.timeIntervalSince1970 + Double(minutes * 60)).rounded(.up))
+        try enforcer.startFocusMonitoring(from: now, until: end)
+        snapshot.focusMinutes = minutes
+        snapshot.focusUntil = end
+        try storage.save(snapshot)
+        enforcer.reconcileShield(snapshot: snapshot, at: now)
+        errorMessage = nil
+    }
+
+    func refreshState() {
+        do {
+            snapshot = try storage.load()
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        guard isAuthorized else { return }
+        if let end = snapshot.focusUntil, end <= Date() {
+            snapshot.focusUntil = nil
+            do {
+                try storage.save(snapshot)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+        enforcer.reconcileShield(snapshot: snapshot)
+    }
 
     init() {
         refreshAuthorizationStatus()
@@ -80,6 +128,7 @@ final class LockInStore {
     }
 
     func saveSelection(_ selection: FamilyActivitySelection) {
+        guard snapshot.canEditPolicy else { return }
         snapshot.selection = selection
         saveAndApply()
     }
@@ -139,6 +188,7 @@ final class LockInStore {
             return
         }
         try enforcer.startMonitoring(snapshot: snapshot)
+        enforcer.reconcileShield(snapshot: snapshot)
     }
 
     private func requestNotificationAuthorization() async throws {
@@ -164,11 +214,20 @@ final class LockInStore {
 
 enum LockInStoreError: LocalizedError {
     case notificationsDenied
+    case screenTimeRequired
+    case selectionRequired
+    case invalidFocusDuration
 
     var errorDescription: String? {
         switch self {
         case .notificationsDenied:
             "Notification permission is required for the 5-minute warning."
+        case .screenTimeRequired:
+            "Allow Screen Time access to start focus."
+        case .selectionRequired:
+            "Select apps or websites to start focus."
+        case .invalidFocusDuration:
+            "Focus must last between 15 and 1440 minutes."
         }
     }
 }

@@ -33,6 +33,9 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private var subtitle: String {
         do {
             let snapshot = try LockInSharedStore().load()
+            if let end = snapshot.focusUntil, snapshot.isFocusing() {
+                return "Focus until \(end.formatted(date: .omitted, time: .shortened))."
+            }
             guard let cooldownUntil = snapshot.cooldownUntil else {
                 return "Blocked until your next day."
             }

@@ -45,6 +45,7 @@ final class UsageController {
         store.reloadUsageFromDisk()
         store.resetIfNeeded(now: store.now)
         store.expireCooldownIfNeeded(now: store.now)
+        store.expireFocusIfNeeded(now: store.now)
         recordCurrentUseIfNeeded()
         await reconcileLimits()
         blockCurrentBrowserTabIfNeeded()
@@ -53,6 +54,7 @@ final class UsageController {
 
     private func recordCurrentUseIfNeeded() {
         let browserActivity = browserMonitor.currentActivity()
+        store.browserError = browserMonitor.errorMessage
         let applicationActivity = applicationMonitor.currentActivity()
         let websiteRule = browserActivity.flatMap { activity in
             store.rules.first(where: { DomainMatcher.url(activity.url, matchesDomain: $0.domain) })
@@ -74,7 +76,7 @@ final class UsageController {
 
         store.setActiveRuleIDs(activeRuleIDs)
 
-        guard !store.isCoolingDown(now: store.now),
+        guard !store.isBlocking(now: store.now),
               store.sessionSecondsUsed < store.sessionLimitMinutes * 60 else {
             return
         }
@@ -102,12 +104,12 @@ final class UsageController {
             store.startCooldown(now: store.now)
         }
 
-        store.blockerState = store.isCoolingDown(now: store.now) ? .active(store.allRuleIDs.count) : .idle
+        store.blockerState = store.isBlocking(now: store.now) ? .active(store.allRuleIDs.count) : .idle
         store.save()
     }
 
     private func blockCurrentBrowserTabIfNeeded() {
-        guard store.isCoolingDown(now: store.now),
+        guard store.isBlocking(now: store.now),
               let activity = store.currentActivity,
               store.rules.contains(where: { DomainMatcher.url(activity.url, matchesDomain: $0.domain) }),
               let blockPageURL else {
@@ -118,7 +120,7 @@ final class UsageController {
     }
 
     private func blockCurrentApplicationIfNeeded() {
-        guard store.isCoolingDown(now: store.now),
+        guard store.isBlocking(now: store.now),
               let activity = store.currentApplicationActivity,
               store.applicationRules.contains(where: { $0.bundleIdentifier == activity.bundleIdentifier }) else {
             return
@@ -132,9 +134,11 @@ final class UsageController {
             return suppliedBlockPageURL
         }
 
-        let pageName = store.completedSessionCount >= store.sessionCountLimit
-            ? "blocked-until-next-day.html"
-            : "blocked-until-break-ends.html"
+        let pageName = store.isFocusing(now: store.now)
+            ? "blocked-until-focus-ends.html"
+            : store.completedSessionCount >= store.sessionCountLimit
+                ? "blocked-until-next-day.html"
+                : "blocked-until-break-ends.html"
 
         if let resourceURL = Bundle.main.resourceURL?.appending(path: pageName),
            FileManager.default.fileExists(atPath: resourceURL.path) {

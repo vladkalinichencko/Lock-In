@@ -2,6 +2,17 @@ import XCTest
 @testable import LockIn
 
 final class LockInScheduleTests: XCTestCase {
+    func testFocusScheduleKeepsExactDatesAcrossMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 23, minute: 50)))
+        let end = start.addingTimeInterval(25 * 60)
+        let schedule = LockInSchedule.focusSchedule(from: start, until: end, calendar: calendar)
+        XCTAssertEqual(calendar.date(from: schedule.intervalStart), start)
+        XCTAssertEqual(calendar.date(from: schedule.intervalEnd), end)
+        XCTAssertFalse(schedule.repeats)
+    }
+
     func testDayWindowUsesPreviousDayBeforeResetTime() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

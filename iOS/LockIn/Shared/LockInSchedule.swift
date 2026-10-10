@@ -2,6 +2,15 @@ import DeviceActivity
 import Foundation
 
 enum LockInSchedule {
+    static func focusSchedule(from start: Date, until end: Date, calendar: Calendar = .current) -> DeviceActivitySchedule {
+        let components: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
+        return DeviceActivitySchedule(
+            intervalStart: calendar.dateComponents(components, from: start),
+            intervalEnd: calendar.dateComponents(components, from: end),
+            repeats: false
+        )
+    }
+
     static func dayWindowStart(for date: Date, snapshot: LockInSnapshot, calendar: Calendar = .current) -> Date {
         LockInPolicy.dayWindowStart(
             for: date,

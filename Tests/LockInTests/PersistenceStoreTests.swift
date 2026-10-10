@@ -29,7 +29,9 @@ final class PersistenceStoreTests: XCTestCase {
             resetMinute: 30,
             cooldownUntil: Date(timeIntervalSince1970: 500),
             completedSessionCount: 2,
-            cumulativeSecondsUsed: 2700
+            cumulativeSecondsUsed: 2700,
+            focusMinutes: 50,
+            focusUntil: Date(timeIntervalSince1970: 1500)
         )
 
         try store.save(snapshot)
@@ -46,6 +48,8 @@ final class PersistenceStoreTests: XCTestCase {
         XCTAssertEqual(loaded.cooldownUntil, Date(timeIntervalSince1970: 500))
         XCTAssertEqual(loaded.completedSessionCount, 2)
         XCTAssertEqual(loaded.cumulativeSecondsUsed, 2700)
+        XCTAssertEqual(loaded.focusMinutes, 50)
+        XCTAssertEqual(loaded.focusUntil, Date(timeIntervalSince1970: 1500))
     }
 
     func testLoadsLegacyDailySettingsAsSessionSettings() throws {
@@ -75,5 +79,7 @@ final class PersistenceStoreTests: XCTestCase {
         XCTAssertEqual(loaded.resetHour, 7)
         XCTAssertEqual(loaded.resetMinute, 30)
         XCTAssertEqual(loaded.cumulativeSecondsUsed, 0)
+        XCTAssertEqual(loaded.focusMinutes, 25)
+        XCTAssertNil(loaded.focusUntil)
     }
 }

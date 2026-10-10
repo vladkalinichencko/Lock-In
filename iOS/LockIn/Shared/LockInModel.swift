@@ -13,6 +13,8 @@ struct LockInSnapshot: Codable, Equatable {
     var currentSessionSecondsUsed: Int
     var cooldownUntil: Date?
     var warningSentForSession: Bool
+    var focusMinutes: Int?
+    var focusUntil: Date?
 
     init(
         selection: FamilyActivitySelection = FamilyActivitySelection(),
@@ -25,7 +27,9 @@ struct LockInSnapshot: Codable, Equatable {
         cumulativeSecondsUsed: Int = 0,
         currentSessionSecondsUsed: Int = 0,
         cooldownUntil: Date? = nil,
-        warningSentForSession: Bool = false
+        warningSentForSession: Bool = false,
+        focusMinutes: Int? = nil,
+        focusUntil: Date? = nil
     ) {
         self.selection = selection
         self.sessionLimitMinutes = LockInPolicy.clamp(sessionLimitMinutes, min: 1, max: 480)
@@ -38,6 +42,8 @@ struct LockInSnapshot: Codable, Equatable {
         self.currentSessionSecondsUsed = max(0, currentSessionSecondsUsed)
         self.cooldownUntil = cooldownUntil
         self.warningSentForSession = warningSentForSession
+        self.focusMinutes = focusMinutes
+        self.focusUntil = focusUntil
     }
 
     var totalSecondsAllowed: Int {
@@ -48,11 +54,19 @@ struct LockInSnapshot: Codable, Equatable {
     }
 
     var canEditPolicy: Bool {
-        LockInPolicy.canEdit(
+        !isFocusing() && LockInPolicy.canEdit(
             cumulativeSecondsUsed: cumulativeSecondsUsed,
             completedSessionCount: completedSessionCount,
             cooldownUntil: cooldownUntil
         )
+    }
+
+    func isFocusing(at date: Date = Date()) -> Bool {
+        focusUntil.map { date < $0 } ?? false
+    }
+
+    func isBlocking(at date: Date = Date()) -> Bool {
+        isFocusing(at: date) || (cooldownUntil.map { date < $0 } ?? false)
     }
 
     var hasSelection: Bool {
