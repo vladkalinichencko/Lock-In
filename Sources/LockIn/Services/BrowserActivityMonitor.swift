@@ -48,9 +48,16 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
             return nil
         }
 
-        guard let url = script.activeTabURL(logger: logger) else {
-            errorMessage = "Cannot read the focused \(script.displayName) tab. Check Automation access in System Settings."
-            logger.warning("Could not read active tab URL for \(bundleIdentifier, privacy: .public)")
+        let url: URL
+        do {
+            guard let activeURL = try script.activeTabURL(logger: logger) else { return nil }
+            url = activeURL
+        } catch {
+            if (error as NSError).code == -1743 {
+                errorMessage = "Lock In needs permission to read \(script.displayName) tabs. Open  → System Settings → Privacy & Security → Automation, expand Lock In, and turn on \(script.displayName)."
+            } else {
+                errorMessage = "Cannot read the focused \(script.displayName) tab: \(error.localizedDescription)"
+            }
             return nil
         }
 
@@ -85,7 +92,7 @@ private enum BrowserScript {
         }
     }
 
-    func activeTabURL(logger: Logger) -> URL? {
+    func activeTabURL(logger: Logger) throws -> URL? {
         let source: String
         switch self {
         case .safari:
@@ -121,7 +128,11 @@ private enum BrowserScript {
         let descriptor = script.executeAndReturnError(&error)
         if let error {
             logger.warning("Browser AppleScript failed: \(String(describing: error), privacy: .public)")
-            return nil
+            throw NSError(
+                domain: NSOSStatusErrorDomain,
+                code: error[NSAppleScript.errorNumber] as? Int ?? -1,
+                userInfo: [NSLocalizedDescriptionKey: error[NSAppleScript.errorMessage] as? String ?? "AppleScript failed."]
+            )
         }
 
         guard let output = descriptor.stringValue,
