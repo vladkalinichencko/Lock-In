@@ -49,9 +49,41 @@ final class LockInScheduleTests: XCTestCase {
         XCTAssertEqual(components.hour, 6)
     }
 
-    func testEventsIncludeWarningOnlyForSessionsLongerThanFiveMinutes() {
-        XCTAssertNil(LockInSchedule.events(for: LockInSnapshot(sessionLimitMinutes: 5))[LockInConstants.warningEventName])
-        XCTAssertNotNil(LockInSchedule.events(for: LockInSnapshot(sessionLimitMinutes: 6))[LockInConstants.warningEventName])
+    func testEventsTrackMinutesAndKeepTheConfiguredWarningWindow() {
+        var snapshot = LockInSnapshot(sessionLimitMinutes: 30)
+        snapshot.timeRestrictions = TimeRestrictions(warningMinutes: 3)
+        snapshot.sessionID = UUID()
+        let events = LockInSchedule.events(for: snapshot)
+        XCTAssertEqual(events.count, 30)
+        let warning = LockInSchedule.eventName(minutes: 27, snapshot: snapshot)
+        XCTAssertEqual(events[warning]?.threshold.minute, 27)
+        XCTAssertEqual(LockInSchedule.thresholdMinutes(warning, snapshot: snapshot), 27)
+        snapshot.sessionID = UUID()
+        XCTAssertNil(LockInSchedule.thresholdMinutes(warning, snapshot: snapshot))
+    }
+
+    func testRestartedMonitoringCountsOnlyRemainingUsage() {
+        let snapshot = LockInSnapshot(currentSessionSecondsUsed: 12 * 60)
+        let events = LockInSchedule.events(for: snapshot)
+        XCTAssertEqual(events.count, 18)
+        XCTAssertEqual(events[LockInSchedule.eventName(minutes: 13, snapshot: snapshot)]?.threshold.minute, 1)
+        XCTAssertEqual(events[LockInSchedule.eventName(minutes: 30, snapshot: snapshot)]?.threshold.minute, 18)
+        XCTAssertTrue(events.values.allSatisfy { !$0.includesPastActivity })
+    }
+
+    func testDowntimeScheduleKeepsOvernightBoundaries() {
+        let schedule = LockInSchedule.downtimeSchedule(for: ClockInterval())
+        XCTAssertEqual(schedule.intervalStart.hour, 22)
+        XCTAssertEqual(schedule.intervalEnd.hour, 8)
+        XCTAssertTrue(schedule.repeats)
+    }
+
+    func testShortDowntimeMonitorsAvailabilityToKeepLegalInterval() {
+        let schedule = LockInSchedule.downtimeSchedule(for: ClockInterval(start: 600, end: 605))
+        XCTAssertEqual(schedule.intervalStart.hour, 10)
+        XCTAssertEqual(schedule.intervalStart.minute, 5)
+        XCTAssertEqual(schedule.intervalEnd.hour, 10)
+        XCTAssertEqual(schedule.intervalEnd.minute, 0)
     }
 }
 

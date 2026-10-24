@@ -40,7 +40,7 @@ struct LockInView: View {
                     }
                 }
 
-                if let errorMessage = store.errorMessage {
+                if let errorMessage = store.errorMessage ?? store.notificationErrorMessage {
                     Section {
                         Text(errorMessage)
                             .foregroundStyle(.red)
@@ -87,6 +87,14 @@ struct LockInView: View {
 
                     DatePicker("Reset time", selection: resetTime, displayedComponents: .hourAndMinute)
                         .disabled(!store.snapshot.canEditPolicy)
+                }
+
+                Section {
+                    TimeRestrictionsView(
+                        restrictions: Binding(get: { store.snapshot.restrictions }, set: { store.updateTimeRestrictions($0) }),
+                        sessionMinutes: store.snapshot.sessionLimitMinutes
+                    )
+                    .disabled(!store.snapshot.canEditPolicy)
                 }
 
                 if store.isAuthorized {

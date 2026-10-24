@@ -16,6 +16,8 @@ struct AppSnapshot: Codable {
     var focusMinutes: Int
     var focusUntil: Date?
     var focusPausedAt: Date?
+    var timeRestrictions: TimeRestrictions
+    var lastUsedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case rules
@@ -33,6 +35,8 @@ struct AppSnapshot: Codable {
         case focusMinutes
         case focusUntil
         case focusPausedAt
+        case timeRestrictions
+        case lastUsedAt
         case dailyAllowanceMinutes
         case dayStartHour
         case dayStartMinute
@@ -53,7 +57,9 @@ struct AppSnapshot: Codable {
         cumulativeSecondsUsed: Int = 0,
         focusMinutes: Int = 25,
         focusUntil: Date? = nil,
-        focusPausedAt: Date? = nil
+        focusPausedAt: Date? = nil,
+        timeRestrictions: TimeRestrictions = TimeRestrictions(),
+        lastUsedAt: Date? = nil
     ) {
         self.rules = rules
         self.applicationRules = applicationRules
@@ -70,6 +76,8 @@ struct AppSnapshot: Codable {
         self.focusMinutes = focusMinutes
         self.focusUntil = focusUntil
         self.focusPausedAt = focusPausedAt
+        self.timeRestrictions = timeRestrictions
+        self.lastUsedAt = lastUsedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -96,6 +104,8 @@ struct AppSnapshot: Codable {
         focusMinutes = try container.decodeIfPresent(Int.self, forKey: .focusMinutes) ?? 25
         focusUntil = try container.decodeIfPresent(Date.self, forKey: .focusUntil)
         focusPausedAt = try container.decodeIfPresent(Date.self, forKey: .focusPausedAt)
+        timeRestrictions = try container.decodeIfPresent(TimeRestrictions.self, forKey: .timeRestrictions) ?? TimeRestrictions()
+        lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -115,6 +125,8 @@ struct AppSnapshot: Codable {
         try container.encode(focusMinutes, forKey: .focusMinutes)
         try container.encodeIfPresent(focusUntil, forKey: .focusUntil)
         try container.encodeIfPresent(focusPausedAt, forKey: .focusPausedAt)
+        try container.encode(timeRestrictions, forKey: .timeRestrictions)
+        try container.encodeIfPresent(lastUsedAt, forKey: .lastUsedAt)
     }
 }
 

@@ -16,6 +16,12 @@ struct LockInSnapshot: Codable, Equatable {
     var focusMinutes: Int?
     var focusUntil: Date?
     var focusPausedAt: Date?
+    var timeRestrictions: TimeRestrictions?
+    var lastUsedAt: Date?
+    var windowStart: Date?
+    var sessionID: UUID?
+
+    var restrictions: TimeRestrictions { timeRestrictions ?? TimeRestrictions() }
 
     init(
         selection: FamilyActivitySelection = FamilyActivitySelection(),
@@ -79,16 +85,62 @@ struct LockInSnapshot: Codable, Equatable {
     }
 
     func isBlocking(at date: Date = Date()) -> Bool {
-        isFocusing(at: date) || (cooldownUntil.map { date < $0 } ?? false)
+        restrictions.downtime?.contains(date) == true || isFocusing(at: date)
+            || completedSessionCount >= sessionCountLimit || (cooldownUntil.map { date < $0 } ?? false)
+    }
+
+    mutating func reconcile(at date: Date, calendar: Calendar = .current) {
+        let start = LockInSchedule.dayWindowStart(for: date, snapshot: self, calendar: calendar)
+        if windowStart == nil {
+            windowStart = start
+            sessionID = UUID()
+        } else if windowStart != start {
+            windowStart = start
+            completedSessionCount = 0
+            cumulativeSecondsUsed = 0
+            clearSession()
+        } else if cooldownUntil == nil, let lastUsedAt,
+                  let deadline = restrictions.residualReset(
+                    lastUsedAt: lastUsedAt, secondsUsed: currentSessionSecondsUsed,
+                    sessionMinutes: sessionLimitMinutes, breakMinutes: breakMinutes
+                  ), date >= deadline.addingTimeInterval(60) {
+            finishSession(at: lastUsedAt.addingTimeInterval(60), calendar: calendar)
+        }
+        if let end = cooldownUntil, date >= end, completedSessionCount < sessionCountLimit {
+            clearSession()
+        }
+        if focusPausedAt == nil, let end = focusUntil, date >= end {
+            focusUntil = nil
+        }
+    }
+
+    mutating func recordThreshold(minutes: Int, at date: Date) {
+        guard cooldownUntil == nil, completedSessionCount < sessionCountLimit,
+              minutes * 60 > currentSessionSecondsUsed else { return }
+        cumulativeSecondsUsed += minutes * 60 - currentSessionSecondsUsed
+        currentSessionSecondsUsed = minutes * 60
+        lastUsedAt = date
+        if minutes >= sessionLimitMinutes { finishSession(at: date) }
+    }
+
+    private mutating func finishSession(at date: Date, calendar: Calendar = .current) {
+        completedSessionCount += 1
+        cooldownUntil = completedSessionCount >= sessionCountLimit
+            ? LockInSchedule.nextReset(after: date, snapshot: self, calendar: calendar)
+            : date.addingTimeInterval(TimeInterval(breakMinutes * 60))
+    }
+
+    private mutating func clearSession() {
+        currentSessionSecondsUsed = 0
+        cooldownUntil = nil
+        warningSentForSession = false
+        lastUsedAt = nil
+        sessionID = UUID()
     }
 
     var hasSelection: Bool {
         !selection.applicationTokens.isEmpty ||
         !selection.categoryTokens.isEmpty ||
         !selection.webDomainTokens.isEmpty
-    }
-
-    static func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
-        LockInPolicy.clamp(value, min: minimum, max: maximum)
     }
 }

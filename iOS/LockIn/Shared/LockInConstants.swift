@@ -7,8 +7,7 @@ enum LockInConstants {
     nonisolated(unsafe) static let activityName = DeviceActivityName("lockin.daily")
     nonisolated(unsafe) static let breakActivityName = DeviceActivityName("lockin.break")
     nonisolated(unsafe) static let focusActivityName = DeviceActivityName("lockin.focus")
-    nonisolated(unsafe) static let warningEventName = DeviceActivityEvent.Name("lockin.warning")
-    nonisolated(unsafe) static let sessionLimitEventName = DeviceActivityEvent.Name("lockin.sessionLimit")
+    nonisolated(unsafe) static let downtimeActivityName = DeviceActivityName("lockin.downtime")
     nonisolated(unsafe) static let storeName = ManagedSettingsStore.Name("lockin")
     static let stateFileName = "state.json"
 }

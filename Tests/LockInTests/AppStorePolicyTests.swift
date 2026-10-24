@@ -3,6 +3,68 @@ import XCTest
 
 @MainActor
 final class AppStorePolicyTests: XCTestCase {
+    func testResidualResetsAfterBreakAndSurvivesRelaunch() throws {
+        let persistence = PersistenceStore(fileURL: FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString).appending(path: "state.json"))
+        let store = AppStore(persistence: persistence)
+        store.updateSessionCountLimit(3)
+        let start = store.dayWindow.currentStart(for: Date()).addingTimeInterval(3600)
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 26 * 60, now: start)
+        let restored = AppStore(persistence: persistence)
+        restored.resetResidualIfNeeded(now: start.addingTimeInterval(3599))
+        XCTAssertEqual(restored.sessionSecondsUsed, 26 * 60)
+        restored.resetResidualIfNeeded(now: start.addingTimeInterval(3600))
+        XCTAssertEqual(restored.sessionSecondsUsed, 0)
+        XCTAssertEqual(restored.completedSessionCount, 1)
+        XCTAssertEqual(restored.totalSecondsUsed, 26 * 60)
+        XCTAssertNil(restored.cooldownUntil)
+        XCTAssertNil(restored.lastUsedAt)
+        let saved = try persistence.load()
+        XCTAssertEqual(saved.completedSessionCount, 1)
+        XCTAssertEqual(saved.cumulativeSecondsUsed, 26 * 60)
+    }
+
+    func testResidualOfLastSessionBlocksUntilDailyReset() {
+        let store = AppStore(persistence: PersistenceStore(fileURL: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)))
+        let start = store.dayWindow.currentStart(for: Date()).addingTimeInterval(3600)
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 25 * 60, now: start)
+        store.resetResidualIfNeeded(now: start.addingTimeInterval(3600))
+        XCTAssertEqual(store.completedSessionCount, 1)
+        XCTAssertTrue(store.isBlocking(now: start.addingTimeInterval(3600)))
+        XCTAssertEqual(store.cooldownUntil, store.dayWindow.nextStart(after: start))
+        store.resetResidualIfNeeded(now: start.addingTimeInterval(7200))
+        XCTAssertEqual(store.completedSessionCount, 1)
+    }
+
+    func testEarlyExitRetainsAllowanceAndReturningRestartsInactivity() {
+        let store = AppStore(persistence: PersistenceStore(fileURL: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)))
+        store.updateSessionCountLimit(3)
+        let start = store.dayWindow.currentStart(for: Date()).addingTimeInterval(3600)
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 24 * 60, now: start)
+        store.resetResidualIfNeeded(now: start.addingTimeInterval(3600))
+        XCTAssertEqual(store.completedSessionCount, 0)
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 60, now: start.addingTimeInterval(3600))
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 1, now: start.addingTimeInterval(5400))
+        store.resetResidualIfNeeded(now: start.addingTimeInterval(7200))
+        XCTAssertEqual(store.sessionSecondsUsed, 25 * 60 + 1)
+        store.resetResidualIfNeeded(now: start.addingTimeInterval(9000))
+        XCTAssertEqual(store.completedSessionCount, 1)
+        XCTAssertEqual(store.sessionSecondsUsed, 0)
+    }
+
+    func testDailyResetKeepsDowntimeAndPausedFocus() {
+        let store = AppStore(persistence: PersistenceStore(fileURL: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)))
+        store.timeRestrictions = TimeRestrictions(warningMinutes: 3, downtime: ClockInterval(start: 0, end: 0))
+        let start = Date()
+        store.startFocus(minutes: 25, now: start)
+        store.toggleFocusPause(now: start.addingTimeInterval(60))
+        store.resetIfNeeded(now: start.addingTimeInterval(86400))
+        XCTAssertTrue(store.isBlocking(now: start.addingTimeInterval(86400)))
+        XCTAssertNotNil(store.focusPausedAt)
+        XCTAssertEqual(store.timeRestrictions.warningMinutes, 3)
+        XCTAssertFalse(store.canEditPolicy)
+    }
+
     func testPausedFocusSurvivesReloadAndResumesWithSameRemainingTime() throws {
         let persistence = PersistenceStore(fileURL: FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString).appending(path: "state.json"))

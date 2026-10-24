@@ -23,14 +23,11 @@ flowchart LR
 
 ## How it works
 
-Add domains and installed applications, then choose the session length, number
-of sessions, break length, and daily reset time. Only a focused matching tab or
-frontmost selected app adds time. A five-minute notification comes before the
-limit; afterward Lock In redirects matching tabs and closes selected Mac apps.
+Add domains and installed applications, then choose the session length, number of sessions, break length, and daily reset time. Only a focused matching tab or frontmost selected app adds time. Choose how many minutes before the limit to receive a warning, or set it to zero to turn the warning off. At the limit, Lock In redirects matching tabs and closes selected Mac apps.
 
-Sessions can have breaks between them. When the final session is used, the rule
-stays blocked until the configured daily reset; otherwise it returns after the
-break.
+Sessions can have breaks between them. If you leave a selected site or app during the warning window and stay away for a full break, Lock In discards the remaining allowance and completes that session. The next visit gets a full session if one remains. The final session stays blocked until the daily reset. iPhone usage updates arrive in whole minutes, so residual resets include one extra minute before they take effect.
+
+Downtime blocks all selected sites and apps during a daily time range, including overnight. It has its own start and end times. A daily reset or the end of a focus session keeps downtime in effect until its scheduled end.
 
 ## Things to expect
 

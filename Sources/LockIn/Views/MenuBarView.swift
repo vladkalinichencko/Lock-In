@@ -166,6 +166,12 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
             }
 
+            TimeRestrictionsView(
+                restrictions: Binding(get: { store.timeRestrictions }, set: { store.updateTimeRestrictions($0) }),
+                sessionMinutes: store.sessionLimitMinutes
+            )
+            .disabled(!store.canEditPolicy)
+
             HStack {
                 Text("Reset time")
                     .foregroundStyle(.secondary)
@@ -175,6 +181,7 @@ struct MenuBarView: View {
                     .fixedSize()
                     .disabled(!store.canEditPolicy)
             }
+
         }
         .padding(12)
         .fixedSize()
@@ -238,6 +245,9 @@ struct MenuBarView: View {
     }
 
     private var cooldownText: String? {
+        if let downtime = store.timeRestrictions.downtime, downtime.contains(store.now) {
+            return "Downtime"
+        }
         guard let cooldownUntil = store.cooldownUntil else {
             return nil
         }

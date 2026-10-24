@@ -3,6 +3,15 @@ import XCTest
 @testable import LockIn
 
 final class PersistenceStoreTests: XCTestCase {
+    func testLegacyUsageRecordLoadsWithoutKeepingDerivedBlockingState() throws {
+        let json = """
+        {"ruleID":"00000000-0000-0000-0000-000000000001","windowStart":100,"secondsUsed":123,"warningSent":true,"isBlocked":true}
+        """
+        let record = try JSONDecoder().decode(UsageRecord.self, from: Data(json.utf8))
+        XCTAssertEqual(record.secondsUsed, 123)
+        XCTAssertTrue(record.warningSent)
+    }
+
     func testSavesAndLoadsSettingsRulesAndUsage() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString)
@@ -18,8 +27,7 @@ final class PersistenceStoreTests: XCTestCase {
                     ruleID: rule.id,
                     windowStart: Date(timeIntervalSince1970: 100),
                     secondsUsed: 123,
-                    warningSent: true,
-                    isBlocked: false
+                    warningSent: true
                 )
             ],
             sessionLimitMinutes: 45,
@@ -31,7 +39,9 @@ final class PersistenceStoreTests: XCTestCase {
             completedSessionCount: 2,
             cumulativeSecondsUsed: 2700,
             focusMinutes: 50,
-            focusUntil: Date(timeIntervalSince1970: 1500)
+            focusUntil: Date(timeIntervalSince1970: 1500),
+            timeRestrictions: TimeRestrictions(warningMinutes: 3, downtime: ClockInterval()),
+            lastUsedAt: Date(timeIntervalSince1970: 1200)
         )
 
         try store.save(snapshot)
@@ -50,6 +60,8 @@ final class PersistenceStoreTests: XCTestCase {
         XCTAssertEqual(loaded.cumulativeSecondsUsed, 2700)
         XCTAssertEqual(loaded.focusMinutes, 50)
         XCTAssertEqual(loaded.focusUntil, Date(timeIntervalSince1970: 1500))
+        XCTAssertEqual(loaded.timeRestrictions, snapshot.timeRestrictions)
+        XCTAssertEqual(loaded.lastUsedAt, snapshot.lastUsedAt)
     }
 
     func testLoadsLegacyDailySettingsAsSessionSettings() throws {
@@ -82,5 +94,8 @@ final class PersistenceStoreTests: XCTestCase {
         XCTAssertEqual(loaded.focusMinutes, 25)
         XCTAssertNil(loaded.focusUntil)
         XCTAssertNil(loaded.focusPausedAt)
+        XCTAssertEqual(loaded.timeRestrictions.warningMinutes, 5)
+        XCTAssertNil(loaded.timeRestrictions.downtime)
+        XCTAssertNil(loaded.lastUsedAt)
     }
 }

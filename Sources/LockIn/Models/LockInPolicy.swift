@@ -1,5 +1,31 @@
 import Foundation
 
+struct TimeRestrictions: Codable, Equatable {
+    var warningMinutes = 5
+    var downtime: ClockInterval?
+
+    func warningMinutes(for sessionMinutes: Int) -> Int {
+        min(warningMinutes, max(0, sessionMinutes - 1))
+    }
+
+    func residualReset(lastUsedAt: Date?, secondsUsed: Int, sessionMinutes: Int, breakMinutes: Int) -> Date? {
+        let remaining = sessionMinutes * 60 - secondsUsed
+        guard let lastUsedAt, secondsUsed > 0, remaining > 0,
+              remaining <= warningMinutes(for: sessionMinutes) * 60 else { return nil }
+        return lastUsedAt.addingTimeInterval(TimeInterval(breakMinutes * 60))
+    }
+}
+
+struct ClockInterval: Codable, Equatable {
+    var start = 22 * 60
+    var end = 8 * 60
+
+    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let minute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        return start < end ? (start..<end).contains(minute) : minute >= start || minute < end
+    }
+}
+
 enum LockInPolicy {
     static func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
         Swift.min(Swift.max(value, minimum), maximum)

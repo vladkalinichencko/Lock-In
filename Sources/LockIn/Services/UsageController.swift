@@ -24,6 +24,7 @@ final class UsageController {
     }
 
     func start() {
+        stop()
         notifications.requestAuthorization()
         store.resetIfNeeded()
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -40,12 +41,13 @@ final class UsageController {
         timer = nil
     }
 
-    func tick() async {
-        store.now = Date()
+    func tick(now: Date = Date()) async {
+        store.now = now
         store.reloadUsageFromDisk()
         store.resetIfNeeded(now: store.now)
         store.expireCooldownIfNeeded(now: store.now)
         store.expireFocusIfNeeded(now: store.now)
+        store.resetResidualIfNeeded(now: store.now)
         recordCurrentUseIfNeeded()
         await reconcileLimits()
         blockCurrentBrowserTabIfNeeded()
@@ -68,8 +70,6 @@ final class UsageController {
 
         let activeRuleIDs = Set([websiteRule?.id, applicationRule?.id].compactMap { $0 })
         guard let ruleID = websiteRule?.id ?? applicationRule?.id else {
-            store.currentRuleID = nil
-            store.currentRuleSeenAt = nil
             store.setActiveRuleIDs([])
             return
         }
@@ -87,11 +87,12 @@ final class UsageController {
     private func reconcileLimits() async {
         let limitSeconds = store.sessionLimitMinutes * 60
         let sessionSeconds = store.sessionSecondsUsed
-        let warningSeconds = max(0, limitSeconds - 5 * 60)
+        let warningMinutes = store.timeRestrictions.warningMinutes(for: store.sessionLimitMinutes)
+        let warningSeconds = limitSeconds - warningMinutes * 60
         let warningAlreadySent = store.records.values.contains(where: \.warningSent)
 
-        if sessionSeconds >= warningSeconds && !warningAlreadySent && limitSeconds > 5 * 60 {
-            notifications.sendWarning(domain: "Selected websites and apps", minutesRemaining: 5)
+        if warningMinutes > 0 && sessionSeconds >= warningSeconds && sessionSeconds < limitSeconds && !warningAlreadySent {
+            notifications.sendWarning(domain: "Selected websites and apps", minutesRemaining: warningMinutes)
             for ruleID in store.allRuleIDs {
                 if var record = store.records[ruleID] {
                     record.warningSent = true
@@ -104,7 +105,6 @@ final class UsageController {
             store.startCooldown(now: store.now)
         }
 
-        store.blockerState = store.isBlocking(now: store.now) ? .active(store.allRuleIDs.count) : .idle
         store.save()
     }
 
@@ -134,7 +134,9 @@ final class UsageController {
             return suppliedBlockPageURL
         }
 
-        let pageName = store.isFocusing(now: store.now)
+        let pageName = store.timeRestrictions.downtime?.contains(store.now) == true
+            ? "blocked-during-downtime.html"
+            : store.isFocusing(now: store.now)
             ? "blocked-until-focus-ends.html"
             : store.completedSessionCount >= store.sessionCountLimit
                 ? "blocked-until-next-day.html"

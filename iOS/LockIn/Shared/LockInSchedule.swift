@@ -2,7 +2,9 @@ import DeviceActivity
 import Foundation
 
 enum LockInSchedule {
-    static func focusSchedule(from start: Date, until end: Date, calendar: Calendar = .current) -> DeviceActivitySchedule {
+    static func focusSchedule(
+        from start: Date, until end: Date, calendar: Calendar = .current
+    ) -> DeviceActivitySchedule {
         let components: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
         let end = Date(timeIntervalSince1970: end.timeIntervalSince1970.rounded(.up))
         return DeviceActivitySchedule(
@@ -39,26 +41,37 @@ enum LockInSchedule {
     }
 
     static func events(for snapshot: LockInSnapshot) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
-        var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [
-            LockInConstants.sessionLimitEventName: DeviceActivityEvent(
-                applications: snapshot.selection.applicationTokens,
-                categories: snapshot.selection.categoryTokens,
-                webDomains: snapshot.selection.webDomainTokens,
-                threshold: DateComponents(minute: snapshot.sessionLimitMinutes),
-                includesPastActivity: false
-            )
-        ]
+        Dictionary(uniqueKeysWithValues: (1...snapshot.sessionLimitMinutes)
+            .filter { $0 * 60 > snapshot.currentSessionSecondsUsed }.map { minute in
+                (eventName(minutes: minute, snapshot: snapshot), DeviceActivityEvent(
+                    applications: snapshot.selection.applicationTokens,
+                    categories: snapshot.selection.categoryTokens,
+                    webDomains: snapshot.selection.webDomainTokens,
+                    threshold: DateComponents(minute: minute - snapshot.currentSessionSecondsUsed / 60),
+                    includesPastActivity: false
+                ))
+            })
+    }
 
-        if snapshot.sessionLimitMinutes > 5 {
-            events[LockInConstants.warningEventName] = DeviceActivityEvent(
-                applications: snapshot.selection.applicationTokens,
-                categories: snapshot.selection.categoryTokens,
-                webDomains: snapshot.selection.webDomainTokens,
-                threshold: DateComponents(minute: snapshot.sessionLimitMinutes - 5),
-                includesPastActivity: false
-            )
-        }
+    static func eventName(minutes: Int, snapshot: LockInSnapshot) -> DeviceActivityEvent.Name {
+        DeviceActivityEvent.Name("\(snapshot.sessionID?.uuidString ?? "initial"):\(minutes)")
+    }
 
-        return events
+    static func thresholdMinutes(_ event: DeviceActivityEvent.Name, snapshot: LockInSnapshot) -> Int? {
+        let parts = event.rawValue.split(separator: ":")
+        guard parts.count == 2, parts[0] == (snapshot.sessionID?.uuidString ?? "initial") else { return nil }
+        return Int(parts[1])
+    }
+
+    static func downtimeSchedule(for interval: ClockInterval) -> DeviceActivitySchedule {
+        let duration = (interval.end - interval.start + 1440) % 1440
+        let reverse = duration > 0 && duration < 15
+        let start = reverse ? interval.end : interval.start
+        let end = reverse ? interval.start : interval.end
+        return DeviceActivitySchedule(
+            intervalStart: DateComponents(hour: start / 60, minute: start % 60),
+            intervalEnd: DateComponents(hour: end / 60, minute: end % 60),
+            repeats: true
+        )
     }
 }

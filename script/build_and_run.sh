@@ -29,8 +29,6 @@ stop_running_app() {
   pkill -x "LockInGuardian" >/dev/null 2>&1 || true
 }
 
-stop_running_app
-
 swift build
 BUILD_BINARY="$(swift build --show-bin-path)/$EXECUTABLE_NAME"
 GUARDIAN_BINARY="$(swift build --show-bin-path)/LockInGuardian"
@@ -176,6 +174,7 @@ HTML
 write_block_page "$APP_RESOURCES/blocked-until-break-ends.html" "Blocked until the break ends."
 write_block_page "$APP_RESOURCES/blocked-until-next-day.html" "Blocked until your next day."
 write_block_page "$APP_RESOURCES/blocked-until-focus-ends.html" "Focus is on."
+write_block_page "$APP_RESOURCES/blocked-during-downtime.html" "Downtime"
 
 /usr/bin/xattr -cr "$APP_BUNDLE"
 /usr/bin/xattr -d com.apple.FinderInfo "$APP_BUNDLE" >/dev/null 2>&1 || true
@@ -190,10 +189,10 @@ install_app() {
   cp -R "$APP_BUNDLE" "$INSTALLED_APP"
   /usr/bin/xattr -cr "$INSTALLED_APP"
   rm -rf "$OLD_APP"
-  stop_running_app
 }
 
 open_app() {
+  stop_running_app
   /usr/bin/open "${1:-$APP_BUNDLE}"
 }
 

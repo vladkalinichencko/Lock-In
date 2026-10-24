@@ -17,14 +17,13 @@ final class AppStore {
     var focusMinutes = 25
     var focusUntil: Date?
     var focusPausedAt: Date?
+    var timeRestrictions = TimeRestrictions()
+    var lastUsedAt: Date?
     var completedSessionCount: Int = 0
     var cumulativeSecondsUsed: Int = 0
     var currentActivity: BrowserActivity?
     var currentApplicationActivity: ApplicationActivity?
-    var currentRuleID: UUID?
-    var currentRuleSeenAt: Date?
     var activeRuleIDs: Set<UUID> = []
-    var blockerState: BlockerState = .idle
     var guardianStatus: GuardianStatus = .unknown
     var lastError: String?
     var browserError: String?
@@ -69,6 +68,8 @@ final class AppStore {
             focusMinutes = snapshot.focusMinutes
             focusUntil = snapshot.focusUntil
             focusPausedAt = snapshot.focusPausedAt
+            timeRestrictions = snapshot.timeRestrictions
+            lastUsedAt = snapshot.lastUsedAt
         } catch {
             lastError = error.localizedDescription
             rules = [
@@ -95,7 +96,9 @@ final class AppStore {
                     cumulativeSecondsUsed: cumulativeSecondsUsed,
                     focusMinutes: focusMinutes,
                     focusUntil: focusUntil,
-                    focusPausedAt: focusPausedAt
+                    focusPausedAt: focusPausedAt,
+                    timeRestrictions: timeRestrictions,
+                    lastUsedAt: lastUsedAt
                 )
             )
         } catch {
@@ -118,14 +121,6 @@ final class AppStore {
         )
     }
 
-    var isCoolingDown: Bool {
-        isCoolingDown(now: Date())
-    }
-
-    var canEditList: Bool {
-        canEditPolicy
-    }
-
     var canEditPolicy: Bool {
         !isFocusing(now: now) && LockInPolicy.canEdit(
             cumulativeSecondsUsed: totalSecondsUsed,
@@ -144,7 +139,7 @@ final class AppStore {
     }
 
     func isBlocking(now: Date = Date()) -> Bool {
-        isFocusing(now: now) || isCoolingDown(now: now)
+        timeRestrictions.downtime?.contains(now) == true || isFocusing(now: now) || isCoolingDown(now: now)
     }
 
     func startFocus(minutes: Int, now: Date = Date()) {
@@ -297,6 +292,22 @@ final class AppStore {
         save()
     }
 
+    func updateTimeRestrictions(_ value: TimeRestrictions) {
+        guard canEditPolicy else { return }
+        timeRestrictions = value
+        save()
+    }
+
+    func resetResidualIfNeeded(now: Date = Date()) {
+        guard cooldownUntil == nil,
+              let deadline = timeRestrictions.residualReset(
+                lastUsedAt: lastUsedAt, secondsUsed: sessionSecondsUsed,
+                sessionMinutes: sessionLimitMinutes, breakMinutes: cooldownMinutes
+              ), now >= deadline, let lastUsedAt else { return }
+        startCooldown(now: lastUsedAt)
+        expireCooldownIfNeeded(now: now)
+    }
+
     func updateResetMinute(_ value: Int) {
         guard canEditPolicy else {
             return
@@ -314,8 +325,7 @@ final class AppStore {
                     ruleID: ruleID,
                     windowStart: windowStart,
                     secondsUsed: 0,
-                    warningSent: false,
-                    isBlocked: false
+                    warningSent: false
                 )
                 didReset = true
             }
@@ -324,7 +334,7 @@ final class AppStore {
             cooldownUntil = nil
             completedSessionCount = 0
             cumulativeSecondsUsed = 0
-            blockerState = .idle
+            lastUsedAt = nil
             save()
         }
     }
@@ -334,8 +344,7 @@ final class AppStore {
         guard var record = records[ruleID] else {
             return
         }
-        currentRuleID = ruleID
-        currentRuleSeenAt = now
+        lastUsedAt = now
         record.secondsUsed += seconds
         cumulativeSecondsUsed += seconds
         records[ruleID] = record
@@ -352,13 +361,6 @@ final class AppStore {
         } else {
             cooldownUntil = now.addingTimeInterval(TimeInterval(cooldownMinutes * 60))
         }
-        for ruleID in allRuleIDs {
-            if var record = records[ruleID] {
-                record.isBlocked = true
-                records[ruleID] = record
-            }
-        }
-        blockerState = .active(allRuleIDs.count)
         save()
     }
 
@@ -383,12 +385,11 @@ final class AppStore {
                 ruleID: ruleID,
                 windowStart: windowStart,
                 secondsUsed: 0,
-                warningSent: false,
-                isBlocked: false
+                warningSent: false
             )
         }
         cooldownUntil = nil
-        blockerState = .idle
+        lastUsedAt = nil
         save()
     }
 
@@ -398,16 +399,6 @@ final class AppStore {
         }
         activeRuleIDs = ruleIDs
         save()
-    }
-
-    func clearCurrentRuleIfStale(now: Date = Date()) {
-        guard let currentRuleSeenAt else {
-            currentRuleID = nil
-            return
-        }
-        if now.timeIntervalSince(currentRuleSeenAt) > 10 {
-            currentRuleID = nil
-        }
     }
 
     func reloadUsageFromDisk() {
@@ -425,8 +416,7 @@ final class AppStore {
             focusMinutes = snapshot.focusMinutes
             focusUntil = snapshot.focusUntil
             focusPausedAt = snapshot.focusPausedAt
-            currentRuleID = snapshot.activeRuleIDs.first
-            currentRuleSeenAt = snapshot.activeRuleIDs.isEmpty ? nil : Date()
+            lastUsedAt = snapshot.lastUsedAt
             lastError = nil
         } catch {
             lastError = error.localizedDescription

@@ -20,9 +20,8 @@ final class LockInStore {
     var focusMinutes: Int {
         get { snapshot.focusMinutes ?? 25 }
         set {
-            snapshot.focusMinutes = newValue
             do {
-                try storage.save(snapshot)
+                snapshot = try storage.update { $0.focusMinutes = newValue }
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -30,52 +29,49 @@ final class LockInStore {
     }
 
     func startFocus(minutes: Int, now: Date = Date()) throws {
-        snapshot = try storage.load()
         refreshAuthorizationStatus()
         guard isAuthorized else { throw LockInStoreError.screenTimeRequired }
-        guard snapshot.hasSelection else { throw LockInStoreError.selectionRequired }
         guard (15...1440).contains(minutes) else { throw LockInStoreError.invalidFocusDuration }
-        guard !snapshot.isFocusing(at: now) else { return }
-        let end = Date(timeIntervalSince1970: (now.timeIntervalSince1970 + Double(minutes * 60)).rounded(.up))
-        try enforcer.startFocusMonitoring(from: now, until: end)
-        snapshot.focusMinutes = minutes
-        snapshot.focusUntil = end
-        snapshot.focusPausedAt = nil
-        try storage.save(snapshot)
+        snapshot = try storage.update { snapshot in
+            snapshot.reconcile(at: now)
+            guard snapshot.hasSelection else { throw LockInStoreError.selectionRequired }
+            guard !snapshot.isFocusing(at: now) else { return }
+            let end = Date(timeIntervalSince1970: (now.timeIntervalSince1970 + Double(minutes * 60)).rounded(.up))
+            try enforcer.startFocusMonitoring(from: now, until: end)
+            snapshot.focusMinutes = minutes
+            snapshot.focusUntil = end
+            snapshot.focusPausedAt = nil
+        }
         enforcer.reconcileShield(snapshot: snapshot, at: now)
         errorMessage = nil
     }
 
     func refreshState() {
         do {
-            snapshot = try storage.load()
+            let previousSessionID = snapshot.sessionID
+            snapshot = try storage.update { $0.reconcile(at: Date()) }
+            if isAuthorized, snapshot.hasSelection, previousSessionID != snapshot.sessionID {
+                try enforcer.startMonitoring(snapshot: snapshot)
+                try enforcer.scheduleSessionEnd(snapshot: snapshot, at: Date())
+            }
         } catch {
             errorMessage = error.localizedDescription
             return
         }
         guard isAuthorized else { return }
-        if snapshot.focusPausedAt == nil, let end = snapshot.focusUntil, end <= Date() {
-            snapshot.focusUntil = nil
-            do {
-                try storage.save(snapshot)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
         enforcer.reconcileShield(snapshot: snapshot)
     }
 
     func toggleFocusPause(now: Date = Date()) throws {
-        var updated = try storage.load()
-        guard updated.isFocusing(at: now) else { return }
-        updated.toggleFocusPause(at: now)
-        if updated.focusPausedAt == nil, let end = updated.focusUntil {
-            let duration = TimeInterval((updated.focusMinutes ?? 25) * 60)
-            try enforcer.startFocusMonitoring(from: end.addingTimeInterval(-duration), until: end)
+        snapshot = try storage.update { updated in
+            guard updated.isFocusing(at: now) else { return }
+            updated.toggleFocusPause(at: now)
+            if updated.focusPausedAt == nil, let end = updated.focusUntil {
+                let duration = TimeInterval((updated.focusMinutes ?? 25) * 60)
+                try enforcer.startFocusMonitoring(from: end.addingTimeInterval(-duration), until: end)
+            }
         }
-        try storage.save(updated)
-        snapshot = updated
-        if updated.focusPausedAt != nil {
+        if snapshot.focusPausedAt != nil {
             enforcer.stopFocusMonitoring()
         }
         enforcer.reconcileShield(snapshot: snapshot, at: now)
@@ -84,7 +80,7 @@ final class LockInStore {
 
     init() {
         refreshAuthorizationStatus()
-        load()
+        refreshState()
     }
 
     var isAuthorized: Bool {
@@ -102,15 +98,6 @@ final class LockInStore {
             true
         default:
             false
-        }
-    }
-
-    func load() {
-        do {
-            snapshot = try storage.load()
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 
@@ -146,48 +133,40 @@ final class LockInStore {
     }
 
     func saveSelection(_ selection: FamilyActivitySelection) {
-        guard snapshot.canEditPolicy else { return }
-        snapshot.selection = selection
-        saveAndApply()
+        updatePolicy { $0.selection = selection }
     }
 
     func updateSessionLimitMinutes(_ value: Int) {
-        guard snapshot.canEditPolicy else {
-            return
-        }
-        snapshot.sessionLimitMinutes = LockInSnapshot.clamp(value, min: 1, max: 480)
-        saveAndApply()
+        updatePolicy { $0.sessionLimitMinutes = LockInPolicy.clamp(value, min: 1, max: 480) }
     }
 
     func updateSessionCountLimit(_ value: Int) {
-        guard snapshot.canEditPolicy else {
-            return
-        }
-        snapshot.sessionCountLimit = LockInSnapshot.clamp(value, min: 1, max: 24)
-        saveAndApply()
+        updatePolicy { $0.sessionCountLimit = LockInPolicy.clamp(value, min: 1, max: 24) }
     }
 
     func updateBreakMinutes(_ value: Int) {
-        guard snapshot.canEditPolicy else {
-            return
-        }
-        snapshot.breakMinutes = LockInSnapshot.clamp(value, min: 1, max: 1440)
-        saveAndApply()
+        updatePolicy { $0.breakMinutes = LockInPolicy.clamp(value, min: 1, max: 1440) }
     }
 
     func updateResetTime(_ date: Date) {
-        guard snapshot.canEditPolicy else {
-            return
-        }
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        snapshot.resetHour = LockInSnapshot.clamp(components.hour ?? snapshot.resetHour, min: 0, max: 23)
-        snapshot.resetMinute = LockInSnapshot.clamp(components.minute ?? snapshot.resetMinute, min: 0, max: 59)
-        saveAndApply()
+        updatePolicy { snapshot in
+            snapshot.resetHour = components.hour ?? snapshot.resetHour
+            snapshot.resetMinute = components.minute ?? snapshot.resetMinute
+            snapshot.windowStart = LockInSchedule.dayWindowStart(for: Date(), snapshot: snapshot)
+        }
     }
 
-    private func saveAndApply() {
+    func updateTimeRestrictions(_ value: TimeRestrictions) {
+        updatePolicy { $0.timeRestrictions = value }
+    }
+
+    private func updatePolicy(_ change: (inout LockInSnapshot) -> Void) {
         do {
-            try storage.save(snapshot)
+            snapshot = try storage.update { snapshot in
+                snapshot.reconcile(at: Date())
+                if snapshot.canEditPolicy { change(&snapshot) }
+            }
             try applyPolicy()
             errorMessage = nil
         } catch {
@@ -206,6 +185,7 @@ final class LockInStore {
             return
         }
         try enforcer.startMonitoring(snapshot: snapshot)
+        try enforcer.scheduleSessionEnd(snapshot: snapshot, at: Date())
         enforcer.reconcileShield(snapshot: snapshot)
     }
 
@@ -239,7 +219,7 @@ enum LockInStoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notificationsDenied:
-            "Notification permission is required for the 5-minute warning."
+            "Allow notifications in Settings to receive the limit warning."
         case .screenTimeRequired:
             "Allow Screen Time access to start focus."
         case .selectionRequired:

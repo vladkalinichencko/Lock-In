@@ -4,6 +4,62 @@ import XCTest
 
 @MainActor
 final class UsageControllerTests: XCTestCase {
+    func testCustomWarningAndDisabledWarningUseTheSavedPolicy() async {
+        for warning in [0, 3] {
+            let store = AppStore(persistence: temporaryPersistence())
+            store.updateTimeRestrictions(TimeRestrictions(warningMinutes: warning))
+            store.recordUsage(ruleID: store.rules[0].id, seconds: 27 * 60)
+            let notifications = FakeNotificationService()
+            let controller = UsageController(
+                store: store, browserMonitor: FakeBrowserActivityMonitor(activity: nil),
+                applicationMonitor: FakeApplicationActivityMonitor(activity: nil), notifications: notifications
+            )
+            await controller.tick()
+            await controller.tick()
+            XCTAssertEqual(notifications.warningMinutes, warning == 0 ? [] : [3])
+        }
+    }
+
+    func testReturningAfterResidualResetStartsNextAllowanceBeforeCounting() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.updateSessionCountLimit(3)
+        let start = store.dayWindow.currentStart(for: Date()).addingTimeInterval(3600)
+        store.recordUsage(ruleID: store.rules[0].id, seconds: 26 * 60, now: start)
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia", bundleIdentifier: "company.thebrowser.dia", url: URL(string: "https://x.com")!
+        ))
+        let controller = UsageController(
+            store: store, browserMonitor: browser, applicationMonitor: FakeApplicationActivityMonitor(activity: nil),
+            notifications: FakeNotificationService()
+        )
+        await controller.tick(now: start.addingTimeInterval(3600))
+        XCTAssertEqual(store.sessionSecondsUsed, 1)
+        XCTAssertEqual(store.completedSessionCount, 1)
+        XCTAssertEqual(store.totalSecondsUsed, 26 * 60 + 1)
+        XCTAssertNil(browser.redirectedURL)
+    }
+
+    func testDowntimeBlocksSelectedSitesAndAppsWithoutSpendingAllowance() async {
+        let store = AppStore(persistence: temporaryPersistence())
+        store.updateTimeRestrictions(TimeRestrictions(downtime: ClockInterval(start: 0, end: 0)))
+        store.applicationRules = [ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")]
+        let browser = FakeBrowserActivityMonitor(activity: BrowserActivity(
+            appName: "Dia", bundleIdentifier: "company.thebrowser.dia", url: URL(string: "https://x.com")!
+        ))
+        let application = FakeApplicationActivityMonitor(activity: ApplicationActivity(
+            name: "TV", bundleIdentifier: "com.apple.TV", processIdentifier: 42
+        ))
+        let controller = UsageController(
+            store: store, browserMonitor: browser, applicationMonitor: application,
+            notifications: FakeNotificationService(), blockPageURL: URL(string: "file:///downtime.html")!
+        )
+        await controller.tick()
+        XCTAssertEqual(browser.redirectedURL, URL(string: "file:///downtime.html"))
+        XCTAssertEqual(application.blockedActivity, application.activity)
+        XCTAssertEqual(store.totalSecondsUsed, 0)
+        XCTAssertNil(store.cooldownUntil)
+    }
+
     func testPausedFocusKeepsSitesAndAppsBlockedPastOriginalDeadline() async {
         let store = AppStore(persistence: temporaryPersistence())
         store.applicationRules = [ApplicationRule(name: "TV", bundleIdentifier: "com.apple.TV")]
@@ -388,11 +444,13 @@ private final class FakeBrowserActivityMonitor: BrowserActivityMonitoring {
 
 private final class FakeNotificationService: UserNotifying {
     var warningDomains: [String] = []
+    var warningMinutes: [Int] = []
 
     func requestAuthorization() {}
 
     func sendWarning(domain: String, minutesRemaining: Int) {
         warningDomains.append(domain)
+        warningMinutes.append(minutesRemaining)
     }
 
 }

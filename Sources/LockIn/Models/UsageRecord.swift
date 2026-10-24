@@ -5,5 +5,4 @@ struct UsageRecord: Codable, Equatable {
     var windowStart: Date
     var secondsUsed: Int
     var warningSent: Bool
-    var isBlocked: Bool
 }

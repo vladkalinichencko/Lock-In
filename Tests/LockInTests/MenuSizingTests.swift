@@ -11,7 +11,7 @@ final class MenuSizingTests: XCTestCase {
                 .appending(path: UUID().uuidString)
                 .appending(path: "state.json")
         ))
-        let view = NSHostingView(rootView: MenuBarView(store: store))
+        let view = NSHostingView(rootView: MenuBarView(store: store).background(.background))
         view.frame.size = view.fittingSize
         let menu = NSMenu()
         let item = NSMenuItem()
@@ -23,10 +23,21 @@ final class MenuSizingTests: XCTestCase {
         let initialHeight = view.frame.height
         let initialWidth = view.frame.width
         try await Task.sleep(for: .milliseconds(100))
-        let resetPicker = try XCTUnwrap(descendant(of: NSDatePicker.self, in: view))
+        let resetPicker = try XCTUnwrap(descendants(of: NSDatePicker.self, in: view).last)
         let pickerFrame = view.convert(resetPicker.bounds, from: resetPicker)
         let bottomGap = view.isFlipped ? view.bounds.maxY - pickerFrame.maxY : pickerFrame.minY - view.bounds.minY
         XCTAssertEqual(bottomGap, 12, accuracy: 1, "Only the menu's outer padding should remain below Reset time")
+
+        store.timeRestrictions.downtime = ClockInterval()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(view.fittingSize.height, initialHeight, accuracy: 1)
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let image = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        let imageURL = URL(fileURLWithPath: "/private/tmp/lockin-ui/macos.png")
+        try FileManager.default.createDirectory(at: imageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try image.write(to: imageURL)
+        store.timeRestrictions.downtime = nil
 
         store.startFocus(minutes: 25)
         try await Task.sleep(for: .milliseconds(100))
@@ -73,8 +84,8 @@ final class MenuSizingTests: XCTestCase {
         withExtendedLifetime(window) {}
     }
 
-    private func descendant<T: NSView>(of type: T.Type, in view: NSView) -> T? {
-        if let match = view as? T { return match }
-        return view.subviews.lazy.compactMap { self.descendant(of: type, in: $0) }.first
+    private func descendants<T: NSView>(of type: T.Type, in view: NSView) -> [T] {
+        if let match = view as? T { return [match] }
+        return view.subviews.flatMap { self.descendants(of: type, in: $0) }
     }
 }

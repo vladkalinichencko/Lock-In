@@ -13,10 +13,18 @@ struct LockInEnforcer {
             during: LockInSchedule.deviceActivitySchedule(for: snapshot),
             events: LockInSchedule.events(for: snapshot)
         )
+        if let downtime = snapshot.restrictions.downtime {
+            try activityCenter.startMonitoring(
+                LockInConstants.downtimeActivityName,
+                during: LockInSchedule.downtimeSchedule(for: downtime)
+            )
+        } else {
+            activityCenter.stopMonitoring([LockInConstants.downtimeActivityName])
+        }
     }
 
     func stopMonitoring() {
-        activityCenter.stopMonitoring([LockInConstants.activityName, LockInConstants.breakActivityName, LockInConstants.focusActivityName])
+        activityCenter.stopMonitoring([LockInConstants.activityName, LockInConstants.breakActivityName, LockInConstants.focusActivityName, LockInConstants.downtimeActivityName])
     }
 
     func startFocusMonitoring(from start: Date, until end: Date) throws {
@@ -39,16 +47,24 @@ struct LockInEnforcer {
     }
 
     func startBreakMonitoring(from start: Date, until end: Date, calendar: Calendar = .current) throws {
-        let startComponents = calendar.dateComponents([.hour, .minute, .second], from: start)
-        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: end)
+        let schedule = LockInSchedule.focusSchedule(from: min(start, end.addingTimeInterval(-900)), until: end, calendar: calendar)
+        guard activityCenter.schedule(for: LockInConstants.breakActivityName)?.intervalEnd != schedule.intervalEnd else { return }
         try activityCenter.startMonitoring(
             LockInConstants.breakActivityName,
-            during: DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false
-            )
+            during: schedule
         )
+    }
+
+    func scheduleSessionEnd(snapshot: LockInSnapshot, at date: Date) throws {
+        let end = snapshot.cooldownUntil ?? snapshot.restrictions.residualReset(
+            lastUsedAt: snapshot.lastUsedAt, secondsUsed: snapshot.currentSessionSecondsUsed,
+            sessionMinutes: snapshot.sessionLimitMinutes, breakMinutes: snapshot.breakMinutes
+        )?.addingTimeInterval(60)
+        if let end, end > date {
+            try startBreakMonitoring(from: date, until: end)
+        } else {
+            activityCenter.stopMonitoring([LockInConstants.breakActivityName])
+        }
     }
 
     func applyShield(selection: FamilyActivitySelection) {

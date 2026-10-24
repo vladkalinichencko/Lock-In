@@ -33,6 +33,9 @@ final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private var subtitle: String {
         do {
             let snapshot = try LockInSharedStore().load()
+            if let downtime = snapshot.restrictions.downtime, downtime.contains(Date()) {
+                return "Downtime"
+            }
             if snapshot.focusPausedAt != nil, snapshot.isFocusing() {
                 return "Focus timer paused."
             }
