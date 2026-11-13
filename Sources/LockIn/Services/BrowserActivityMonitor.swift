@@ -27,7 +27,6 @@ final class BrowserActivityMonitor: BrowserActivityMonitoring {
     private let supportedBrowsers: [String: BrowserScript] = [
         "com.apple.Safari": .safari,
         "com.brave.Browser": .chromium(appName: "Brave Browser"),
-        "com.google.Chrome": .chromium(appName: "Google Chrome"),
         "com.microsoft.edgemac": .chromium(appName: "Microsoft Edge"),
         "com.operasoftware.Opera": .chromium(appName: "Opera"),
         "com.vivaldi.Vivaldi": .chromium(appName: "Vivaldi"),
